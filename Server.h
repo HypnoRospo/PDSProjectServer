@@ -24,6 +24,13 @@ class Server
      * prevent direct construction/destruction calls with the `new`/`delete`
      * operator.
      */
+
+public:   //we make decision in future, public or private with a parameter
+    Server()
+    {
+        AccessDatabase();
+    }
+
 private:
     static Server * pinstance_;
     static std::mutex mutex_;
