@@ -48,7 +48,7 @@ void Database::connect() {
             prep_stmt->setString(2, "password2");
             prep_stmt->execute();
 
-            std::cout << "Utenti inseriti " << std::endl;;
+            std::cout << "Utenti inseriti " << std::endl;
             delete prep_stmt;
             delete con;
 

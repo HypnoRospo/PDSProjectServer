@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <mutex>
+#include <utility>
 #include "Database.h"
 
 /**
@@ -28,11 +29,11 @@ private:
     static std::mutex mutex_;
 
 protected:
-    Server(const std::string value): value_(value)
+    explicit Server(std::string  value): value_(std::move(value))
     {
         AccessDatabase();
     }
-    ~Server() {}
+    ~Server() = default;
     std::string value_;
 
 public:
@@ -59,13 +60,12 @@ private:
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
      */
-     void AccessDatabase()
+     static void AccessDatabase()
     {
         // ...
-       Database database;
-       database.connect();
+       Database::connect();
     }
-    std::string value() const{
+    [[nodiscard]] std::string value() const{
         return value_;
     }
 };

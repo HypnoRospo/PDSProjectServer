@@ -28,7 +28,7 @@ std::mutex Server::mutex_;
     }
     else
     {
-        std::cout << "Accesso al database gia' avvenuto, utenti non inseriti nuovamente" << std::endl;;
+        std::cout << "Accesso al database gia' avvenuto, utenti non inseriti nuovamente" << std::endl;
     }
     return pinstance_;
 }

@@ -1,8 +1,8 @@
 #include <iostream>
 #include<thread>
-#include <openssl/sha.h>
+//#include <openssl/sha.h>
 #include <boost/asio/ts/buffer.hpp>
-#include <boost/asio/ts/internet.hpp>
+//#include <boost/asio/ts/internet.hpp>
 #include "Server.h"
 
 int main() {

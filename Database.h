@@ -9,7 +9,7 @@
 class Database {
 
 public:
-    void connect();
+   static void connect();
 
 };
 
