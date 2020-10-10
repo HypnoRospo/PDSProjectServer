@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <mutex>
+#include "Database.h"
 
 /**
  * The Singleton class defines the `GetInstance` method that serves as an
@@ -19,7 +20,7 @@ class Server
 
     /**
      * The Singleton's constructor/destructor should always be private to
-     * prevent direct construction/desctruction calls with the `new`/`delete`
+     * prevent direct construction/destruction calls with the `new`/`delete`
      * operator.
      */
 private:
@@ -29,6 +30,7 @@ private:
 protected:
     Server(const std::string value): value_(value)
     {
+        AccessDatabase();
     }
     ~Server() {}
     std::string value_;
@@ -48,17 +50,21 @@ public:
      * into the static field. On subsequent runs, it returns the client existing
      * object stored in the static field.
      */
+   friend void ThreadFoo();
+   friend void ThreadBar();
 
+private:
     static Server *getInstance(const std::string& value);
     /**
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
      */
-    void SomeLogicNeeded()
+     void AccessDatabase()
     {
         // ...
+       Database database;
+       database.connect();
     }
-
     std::string value() const{
         return value_;
     }

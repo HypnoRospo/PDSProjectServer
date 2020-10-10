@@ -19,12 +19,16 @@ std::mutex Server::mutex_;
  *      and then we make sure again that the variable is null and then we
  *      set the value. RU:
  */
-Server *Server::getInstance(const std::string& value)
+ Server *Server::getInstance(const std::string& value)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (pinstance_ == nullptr)
     {
         pinstance_ = new Server(value);
+    }
+    else
+    {
+        std::cout << "Accesso al database gia' avvenuto, utenti non inseriti nuovamente" << std::endl;;
     }
     return pinstance_;
 }
