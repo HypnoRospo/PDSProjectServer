@@ -21,7 +21,7 @@ private:
      int sockfd;
      explicit Socket(int sockfd) : sockfd(sockfd)
      {
-         std::cout << "Socket" <<sockfd<< "created!" <<std::endl;
+         std::cout << "Socket " <<sockfd<< " (active) created!" <<std::endl;
      }
 
      Socket &operator=(const Socket&) =delete;
@@ -81,6 +81,7 @@ public:
         sockaddrIn.sin_addr.s_addr = htonl(INADDR_ANY);
         //bind
         Bind(sockfd, reinterpret_cast<struct sockaddr*>(&sockaddrIn), sizeof(sockaddrIn));
+        std::cout<<"Socket created, listening on : "<<inet_ntoa(sockaddrIn.sin_addr)<<":"<< ntohs(sockaddrIn.sin_port)<<std::endl;
         //listen
         Listen(sockfd,CODA_ASCOLTO);
 

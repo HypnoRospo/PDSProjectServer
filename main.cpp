@@ -68,8 +68,8 @@ int main() {
                      inet_ntoa(addr.sin_addr)<<ntohs(addr.sin_port)<<std::endl;
             continue;
         }
-        std::cout<<"Connessione stabilita con %s con porta %u"<<
-        inet_ntoa(addr.sin_addr)<<ntohs(addr.sin_port)<<std::endl;
+        std::cout<<"Connessione stabilita con -> "<<
+        inet_ntoa(addr.sin_addr)<<":"<<ntohs(addr.sin_port)<<std::endl;
 
         /* ciclo che riceve i comandi client */
         while(true){
@@ -83,7 +83,7 @@ int main() {
             /* timing impostato a 15 */
 
 
-            std::cout<<"Waiting for command..."<<std::endl;
+            std::cout<<"In attesa di ricevere comandi..."<<std::endl;
 
             /* ricezione comando client */
             int s;
@@ -91,12 +91,11 @@ int main() {
 
                 read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
                 if(read_result == -1){
-                    //err_msg("%s - impossibile leggere comando dal client %s con porta %u",
-                      //      prog_name, inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port));
+                    std::cout<<"Impossibile leggere il comando dal client, riprovare."<<std::endl;
                     break;
                 }
 
-                //err_msg("%s - comando ricevuto: %s", prog_name, buffer);
+                std::cout<<"Comando ricevuto: "<<buffer<<std::endl;
 
                 /* controllo inizio GET e fine  */
                 if(strncmp(GET, buffer, strlen(GET)) == 0 &&
@@ -114,8 +113,7 @@ int main() {
                     /* open file and get its stat */
                     if((fileptr = fopen(filename, "rb")) == NULL ||
                        stat(filename, &filestat) != 0){
-                  //      err_msg("%s - Impossibile aprire il file %s", prog_name,
-                    //            filename);
+                  std::cout<<"Impossibile aprire il file: " <<filename<<std::endl;
                         /* send error message to client and close the connection */
                         send_err(s_connesso);
                         break;
@@ -123,7 +121,7 @@ int main() {
                     filesize = filestat.st_size;
                     filelastmod = filestat.st_mtime;
 
-                    //err_msg("%s - Ricerca file con successo", prog_name);
+                    std::cout<<"Ricerca file andata a buon fine."<<std::endl;
                     send_result = send_file(s_connesso, filesize, filelastmod,
                                              fileptr);
                     if (send_result < 0){
@@ -131,7 +129,7 @@ int main() {
                         send_err(s_connesso);
                         break;
                     }
-                    //err_msg("%s - File mandato con successo", prog_name);
+                    std::cout<<"File mandato con successo."<<std::endl;
                     fclose(fileptr);
                     continue;
 
@@ -146,13 +144,13 @@ int main() {
             }
                 /* select() ritorna 0, timeout */
             else if (s == 0){
-                //err_msg("%s - nessuna risposta dopo %d secondi, chiusura.", prog_name, TIMEOUT_SECONDI);
+                std::cout<<"Nessuna risposta dopo" <<TIMEOUT_SECONDI<<"secondi, chiusura."<<std::endl;
                 send_err(s_connesso);
                 break;
 
             } /* fallimento select() */
             else{
-                //err_msg ("%s, errore sulla select()", prog_name);
+                std::cout<<"Errore nella select()"<<std::endl;
                 send_err(s_connesso);
                 break;
             }
@@ -163,9 +161,7 @@ int main() {
 
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
     ssize_t sent;
-    sent = send(socket,bufptr,nbytes,flags);
-
-    if(sent != nbytes)
+    if((sent = send(socket, bufptr, nbytes, flags)) != (ssize_t)nbytes)
         std::cout<<"Errore, send() fallita."<<std::endl;
 
         return sent;
@@ -174,7 +170,7 @@ ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
 ssize_t send_err(int sock){
     ssize_t s;
     s = ssend(sock, ERRORE, sizeof(ERRORE), MSG_NOSIGNAL);
-    //err_msg("%s : Errore nella ssend", prog_name);
+    std::cout<<"Errore nella send"<<std::endl;
     return s;
 }
 
@@ -186,8 +182,7 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
 
         /* legge un carattere e controlla i possibili errori */
         do{
-            read = recv(socket, &comm, sizeof(comm), 0);
-            if(read < 0){
+            if(read = recv(socket, &comm, sizeof(comm), 0) < 0){
                 if(INTERRUPTED_BY_SIGNAL)
                     continue;
                 else
