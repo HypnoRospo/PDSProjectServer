@@ -1,18 +1,31 @@
 #include <iostream>
+#include<thread>
 #include <mysql_connection.h>
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
 #include <cppconn/resultset.h>
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
-
+#include <openssl/sha.h>
 #include <boost/asio/ts/buffer.hpp>
 #include <boost/asio/ts/internet.hpp>
+#include "Server.h"
 
 using namespace sql;
 int main() {
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
+
+    std::cout <<"If you see the same value, then singleton was reused (yay!\n" <<
+              "If you see different values, then 2 singletons were created (booo!!)\n" <<
+              "Impossible with mutex locking.\n\n" <<
+              "RESULT:\n";
+    std::thread t1(ThreadBar);
+    std::thread t2(ThreadFoo);
+    t1.join();
+    t2.join();
+
+    return 0;
 
     try {
         sql::Driver *driver;
