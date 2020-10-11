@@ -26,7 +26,9 @@ ssize_t send_err(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
-void work();
+void work(int port);
+void thread_work(int s_connesso);
+
 /**
  * Static methods should be defined outside the class.
  */
@@ -39,13 +41,13 @@ std::mutex Server::mutex_;
  *      and then we make sure again that the variable is null and then we
  *      set the value. RU:
  */
- Server *Server::start(const int port)
+Server *Server::start(const int port)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (pinstance_ == nullptr)
     {
         pinstance_ = new Server(port);
-        work();
+        work(port);
     }
     else
     {
@@ -55,30 +57,23 @@ std::mutex Server::mutex_;
 }
 
 
-void work() {
+void work(const int port) {
 
-    ServerSocket ss(5000);
-
-    int s_connesso;
-    ssize_t read_result;
-    ssize_t send_result;
-
-    char buffer[BUFFER_DIM];
-    char filename[DIM_FILENAME];
-    uint32_t filesize;
-    uint32_t filelastmod;
-    FILE *fileptr;
-
+    pthread_t tid[50];
+    ServerSocket ss(port);
+    int s_connesso,i=0;
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
+    std::vector<Socket> sockets;
 
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
         unsigned int len = sizeof(addr);
+        sleep(1);
         std::cout << "In attesa di connessioni..." << std::endl;
-        Socket s = ss.accept_request(&addr, &len);
-        s_connesso = s.getSockfd();
+        sockets.push_back(ss.accept_request(&addr,&len));
+        s_connesso=sockets.back().getSockfd();
         if (s_connesso < 0) {
             std::cout << "Impossibile stabilire la connessione con il client %s attraverso porta %u" <<
                       inet_ntoa(addr.sin_addr) << ntohs(addr.sin_port) << std::endl;
@@ -87,88 +82,12 @@ void work() {
         std::cout << "Connessione stabilita con -> " <<
                   inet_ntoa(addr.sin_addr) << ":" << ntohs(addr.sin_port) << std::endl;
 
-        /* ciclo che riceve i comandi client */
-        while (true) {
-            fd_set read_set;
-            FD_ZERO(&read_set);
-            FD_SET(s_connesso, &read_set);
-
-            struct timeval t;
-            t.tv_sec = TIMEOUT_SECONDI;
-            t.tv_usec = TIMEOUT_MICROSECONDI;
-            /* timing impostato a 15 */
-
-
-            std::cout << "In attesa di ricevere comandi..." << std::endl;
-
-            /* ricezione comando client */
-            int s;
-            if ((s = select(s_connesso + 1, &read_set, nullptr, nullptr, &t)) > 0) {
-
-                read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
-                if (read_result == -1) {
-                    std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
-                    break;
-                }
-
-                std::cout << "Comando ricevuto: " << buffer << std::endl;
-
-                /* controllo inizio GET e fine  */
-                if (strncmp(GET, buffer, strlen(GET)) == 0 &&
-                    strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {
-
-                    int i, j = 0;
-                    memset(filename, 0, sizeof(char) * DIM_FILENAME);
-                    for (i = strlen(GET); i < strlen(buffer) &&
-                                          (buffer[i] != '\r' && buffer[i + 1] != '\n'); i++) {
-
-                        filename[j] = buffer[i];
-                        j++;
-                    }
-                    struct stat filestat;
-                    /* open file and get its stat */
-                    if ((fileptr = fopen(filename, "rb")) == NULL ||
-                        stat(filename, &filestat) != 0) {
-                        std::cout << "Impossibile aprire il file: " << filename << std::endl;
-                        /* send error message to client and close the connection */
-                        send_err(s_connesso);
-                        break;
-                    }
-                    filesize = filestat.st_size;
-                    filelastmod = filestat.st_mtime;
-
-                    std::cout << "Ricerca file andata a buon fine." << std::endl;
-                    send_result = send_file(s_connesso, filesize, filelastmod,
-                                            fileptr);
-                    if (send_result < 0) {
-
-                        send_err(s_connesso);
-                        break;
-                    }
-                    std::cout << "File mandato con successo." << std::endl;
-                    fclose(fileptr);
-                    continue;
-
-                } else if (strcmp(FINE, buffer) == 0) {
-                    break;
-                } else {
-                    send_err(s_connesso);
-                    break;
-                }
-            }
-                /* select() ritorna 0, timeout */
-            else if (s == 0) {
-                std::cout << "Nessuna risposta dopo" << TIMEOUT_SECONDI << "secondi, chiusura." << std::endl;
-                send_err(s_connesso);
-                break;
-
-            } /* fallimento select() */
-            else {
-                std::cout << "Errore nella select()" << std::endl;
-                send_err(s_connesso);
-                break;
-            }
+        std::cout<<"Socket in questo momento utilizzati nel tempo: " <<std::endl;
+        for (auto & element : sockets) {
+            std::cout<<"Socket id: "<<  element.getSockfd() <<std::endl;
         }
+        std::thread t1 (thread_work,s_connesso);
+        t1.detach();
     }
 }
 
@@ -267,6 +186,102 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     return fsize;
 }
 
+void thread_work(int s_connesso)
+{
+    ssize_t read_result;
+    ssize_t send_result;
+    char buffer[BUFFER_DIM];
+    char filename[DIM_FILENAME];
+    uint32_t filesize;
+    uint32_t filelastmod;
+    FILE *fileptr;
+
+    /* ciclo che riceve i comandi client */
+    while (true) {
+        fd_set read_set;
+        FD_ZERO(&read_set);
+        FD_SET(s_connesso, &read_set);
+
+        struct timeval t;
+        t.tv_sec = TIMEOUT_SECONDI;
+        t.tv_usec = TIMEOUT_MICROSECONDI;
+        /* timing impostato a 15 */
+
+
+        std::cout << "In attesa di ricevere comandi..." << std::endl;
+
+        /* ricezione comando client */
+        int s;
+        if ((s = select(s_connesso + 1, &read_set, nullptr, nullptr, &t)) > 0) {
+
+            read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+            if (read_result == -1) {
+                std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                break;
+            }
+
+            std::cout << "Comando ricevuto: " << buffer << std::endl;
+
+            /* controllo inizio GET e fine  */
+            if (strncmp(GET, buffer, strlen(GET)) == 0 &&
+                strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {
+
+                int i, j = 0;
+                memset(filename, 0, sizeof(char) * DIM_FILENAME);
+                for (i = strlen(GET); i < strlen(buffer) &&
+                                      (buffer[i] != '\r' && buffer[i + 1] != '\n'); i++) {
+
+                    filename[j] = buffer[i];
+                    j++;
+                }
+                struct stat filestat;
+                /* open file and get its stat */
+                if ((fileptr = fopen(filename, "rb")) == NULL ||
+                    stat(filename, &filestat) != 0) {
+                    std::cout << "Impossibile aprire il file: " << filename << std::endl;
+                    /* send error message to client and close the connection */
+                    send_err(s_connesso);
+                    break;
+                }
+                filesize = filestat.st_size;
+                filelastmod = filestat.st_mtime;
+
+                std::cout << "Ricerca file andata a buon fine." << std::endl;
+                send_result = send_file(s_connesso, filesize, filelastmod,
+                                        fileptr);
+                if (send_result < 0) {
+
+                    send_err(s_connesso);
+                    break;
+                }
+                std::cout << "File mandato con successo." << std::endl;
+                fclose(fileptr);
+                continue;
+
+            } else if (strcmp(FINE, buffer) == 0) {
+                break;
+            } else {
+                send_err(s_connesso);
+                break;
+            }
+        }
+            /* select() ritorna 0, timeout */
+        else if (s == 0) {
+            std::cout << "Nessuna risposta dopo" << TIMEOUT_SECONDI << "secondi, chiusura." << std::endl;
+            send_err(s_connesso);
+            break;
+
+        } /* fallimento select() */
+        else {
+            std::cout << "Errore nella select()" << std::endl;
+            send_err(s_connesso);
+            break;
+        }
+    }
+    close(s_connesso);
+    pthread_exit(nullptr);
+
+}
 void ThreadFoo(){
     // Following code emulates slow initialization.
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
