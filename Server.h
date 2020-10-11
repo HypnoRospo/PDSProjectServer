@@ -24,24 +24,17 @@ class Server
      * prevent direct construction/destruction calls with the `new`/`delete`
      * operator.
      */
-
-public:   //we make decision in future, public or private with a parameter
-    Server()
-    {
-        AccessDatabase();
-    }
-
 private:
     static Server * pinstance_;
     static std::mutex mutex_;
 
 protected:
-    explicit Server(std::string  value): value_(std::move(value))
+    explicit Server(int  port): port_(port)
     {
         AccessDatabase();
     }
     ~Server() = default;
-    std::string value_;
+    int port_;
 
 public:
     /**
@@ -61,19 +54,18 @@ public:
    friend void ThreadFoo();
    friend void ThreadBar();
 
-private:
-    static Server *getInstance(const std::string& value);
+    static Server *start( int port);
     /**
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
      */
-     static void AccessDatabase()
+    static void AccessDatabase()
     {
         // ...
        Database::connect();
     }
-    [[nodiscard]] std::string value() const{
-        return value_;
+      int getPort() const{
+        return port_;
     }
 };
 
