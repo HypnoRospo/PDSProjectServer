@@ -23,5 +23,5 @@ void Listen (int sockfd, int backlog);
 
 int Accept (int socket, SA* cliaddr, socklen_t *addrlen);
 
-ssize_t Send(int socket, void *bufptr, size_t nbytes, int flags);
+ssize_t Send(int socket, const void *bufptr, size_t nbytes, int flags);
 #endif //PDSPROJECTSERVER_SOCKETWRAP_H

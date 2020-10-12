@@ -51,9 +51,6 @@ public:
      * into the static field. On subsequent runs, it returns the client existing
      * object stored in the static field.
      */
-   friend void ThreadFoo();
-   friend void ThreadBar();
-
     static Server *start( int port);
     /**
      * Finally, any singleton should define some business logic, which can be

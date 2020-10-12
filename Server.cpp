@@ -10,6 +10,7 @@
 #include <boost/asio/ts/buffer.hpp>
 //#include <boost/asio/ts/internet.hpp>
 #include "Socket.h"
+#include "SocketWrap.h"
 
 #define BUFFER_DIM 255
 #define DIM_FILENAME 255
@@ -59,9 +60,8 @@ Server *Server::start(const int port)
 
 void work(const int port) {
 
-    pthread_t tid[50];
     ServerSocket ss(port);
-    int s_connesso,i=0;
+    int s_connesso;
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
     std::vector<Socket> sockets;
@@ -92,11 +92,7 @@ void work(const int port) {
 }
 
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
-    ssize_t sent;
-    if((sent = send(socket, bufptr, nbytes, flags)) != (ssize_t)nbytes)
-        std::cout<<"Errore, send() fallita."<<std::endl;
-
-    return sent;
+  return Send(socket,bufptr,nbytes,flags);
 }
 
 ssize_t send_err(int sock){
@@ -124,12 +120,9 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
         }while(true);
 
         /* salva il byte letto nel buffer */
-        if(read == 0){
+        if(read == 0) {
             buffer[read_count] = comm;
             read_count++;
-        }/* se read=0 niente da leggere ancora*/
-        else {
-            break;
         }
     }
     /* appendere per farlo diventare una stringa */
@@ -281,17 +274,4 @@ void thread_work(int s_connesso)
     close(s_connesso);
     pthread_exit(nullptr);
 
-}
-void ThreadFoo(){
-    // Following code emulates slow initialization.
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    Server* singleton = Server::start(4000);
-    std::cout << singleton->getPort() << "\n";
-}
-
-void ThreadBar(){
-    // Following code emulates slow initialization.
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    Server* singleton = Server::start(5000);
-    std::cout << singleton->getPort() << "\n";
 }

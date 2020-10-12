@@ -2,6 +2,7 @@
 // Created by enrico_scalabrino on 10/10/20.
 //
 
+
 #include "SocketWrap.h"
 #include <iostream>
 #include <string>
@@ -50,7 +51,7 @@ int Accept (int socket, SA* cliaddr, socklen_t *addrlen){
     return conn;
 }
 
-ssize_t Send(int socket, void *bufptr, size_t nbytes, int flags){
+ssize_t Send(int socket, const void *bufptr, size_t nbytes, int flags){
     ssize_t sent;
     if((sent = ::send(socket, bufptr, nbytes, flags)) != (ssize_t)nbytes)
         throw std::runtime_error("Error, send() failed.");
