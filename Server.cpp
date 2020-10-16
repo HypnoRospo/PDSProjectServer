@@ -27,8 +27,9 @@ ssize_t send_err(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
-void work(int port);
-void thread_work(int s_connesso);
+void work();
+void thread_work();
+void create_threads();
 
 /**
  * Static methods should be defined outside the class.
@@ -36,7 +37,10 @@ void thread_work(int s_connesso);
 
 Server* Server::pinstance_{nullptr};
 std::mutex Server::mutex_;
-
+std::vector<std::thread> threads;
+ServerSocket *ss {nullptr};
+std::vector<Socket> sockets;
+std::mutex mtx;           // mutex for critical section
 /**
  * The first time we call GetInstance we will lock the storage location
  *      and then we make sure again that the variable is null and then we
@@ -48,7 +52,8 @@ Server *Server::start(const int port)
     if (pinstance_ == nullptr)
     {
         pinstance_ = new Server(port);
-        work(port);
+        ss = new ServerSocket(port);
+        work();
     }
     else
     {
@@ -57,38 +62,23 @@ Server *Server::start(const int port)
     return pinstance_;
 }
 
+void create_threads()
+{
+    unsigned int Num_Threads =  std::thread::hardware_concurrency()-1;
 
-void work(const int port) {
+    for(int i = 0; i < Num_Threads; i++)
+    {  threads.emplace_back(thread_work);}
 
-    ServerSocket ss(port);
-    int s_connesso;
+    for(int j=0; j<Num_Threads ;j++)
+    {  threads[j].join();}
+
+}
+
+
+void work() {
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
-    std::vector<Socket> sockets;
-
-    /* ciclo per accettare le connessioni*/
-    while (true) {
-        struct sockaddr_in addr;
-        unsigned int len = sizeof(addr);
-        sleep(1);
-        std::cout << "In attesa di connessioni..." << std::endl;
-        sockets.push_back(ss.accept_request(&addr,&len));
-        s_connesso=sockets.back().getSockfd();
-        if (s_connesso < 0) {
-            std::cout << "Impossibile stabilire la connessione con il client %s attraverso porta %u" <<
-                      inet_ntoa(addr.sin_addr) << ntohs(addr.sin_port) << std::endl;
-            continue;
-        }
-        std::cout << "Connessione stabilita con -> " <<
-                  inet_ntoa(addr.sin_addr) << ":" << ntohs(addr.sin_port) << std::endl;
-
-        std::cout<<"Socket in questo momento utilizzati nel tempo: " <<std::endl;
-        for (auto & element : sockets) {
-            std::cout<<"Socket id: "<<  element.getSockfd() <<std::endl;
-        }
-        std::thread t1 (thread_work,s_connesso);
-        t1.detach();
-    }
+    create_threads();
 }
 
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
@@ -179,7 +169,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     return fsize;
 }
 
-void thread_work(int s_connesso)
+void thread_work()
 {
     ssize_t read_result;
     ssize_t send_result;
@@ -188,6 +178,24 @@ void thread_work(int s_connesso)
     uint32_t filesize;
     uint32_t filelastmod;
     FILE *fileptr;
+    int s_connesso;
+    unsigned long my_socket_index;
+
+    /* ciclo per accettare le connessioni*/
+    while (true) {
+        struct sockaddr_in addr;
+        unsigned int len = sizeof(addr);
+        std::cout << "In attesa di connessioni..." << std::endl;
+        sockets.push_back( ss->accept_request(&addr,&len));
+        mtx.lock();
+        s_connesso= sockets.back().getSockfd();
+        my_socket_index=sockets.size()-1;
+        mtx.unlock();
+        if (s_connesso < 0)
+            continue;
+
+        std::cout << "Connessione stabilita con -> " <<
+                  inet_ntoa(addr.sin_addr) << ":" << ntohs(addr.sin_port) << std::endl;
 
     /* ciclo che riceve i comandi client */
     while (true) {
@@ -199,6 +207,7 @@ void thread_work(int s_connesso)
         t.tv_sec = TIMEOUT_SECONDI;
         t.tv_usec = TIMEOUT_MICROSECONDI;
         /* timing impostato a 15 */
+
 
 
         std::cout << "In attesa di ricevere comandi..." << std::endl;
@@ -271,7 +280,16 @@ void thread_work(int s_connesso)
             break;
         }
     }
-    close(s_connesso);
-    pthread_exit(nullptr);
+
+        mtx.lock();
+        sockets.erase(sockets.begin()+my_socket_index);
+        mtx.unlock();
+
+    }
+
+
+
+    //close(s_connesso);
+    //pthread_exit(nullptr);
 
 }

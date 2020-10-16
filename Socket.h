@@ -50,6 +50,7 @@ public:
     Socket(Socket &&other)  noexcept :sockfd(other.sockfd)
     {
         other.sockfd=0;
+
     }
 
     Socket &operator=(Socket &&other)
@@ -93,8 +94,20 @@ public:
 
     Socket accept_request(struct sockaddr_in* addr,unsigned int* len)
     {
-        int fd = Accept(sockfd,reinterpret_cast<struct sockaddr*>(addr),len);
-        if (fd <0 ) throw std::runtime_error("Cannot accept socket");
+        int fd;
+        try {
+             fd = Accept(sockfd,reinterpret_cast<struct sockaddr*>(addr),len);
+             if (fd <0 ) throw std::runtime_error("Cannot accept socket");
+        }
+        catch(std::runtime_error& re)
+        {
+            std::cout << "Impossibile stabilire la connessione con il client %s attraverso porta %u" <<
+                      inet_ntoa(addr->sin_addr) << ntohs(addr->sin_port) << std::endl;
+            std::cerr<<re.what()<<std::endl;
+        }
+        //gestire il throw to do -> basta una print tanto l'esecuzione continua nel server.cpp con continue
+
+
         return Socket(fd);
     }
 

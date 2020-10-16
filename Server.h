@@ -66,7 +66,4 @@ public:
     }
 };
 
-void ThreadFoo();
-void ThreadBar();
-
 #endif //PDSPROJECTSERVER_SERVER_H
