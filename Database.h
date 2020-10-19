@@ -8,6 +8,19 @@
 
 class Database {
 
+    /**
+ * Singletons should not be cloneable.
+ */
+    Database(Database &other) = delete;
+    /**
+     * Singletons should not be assignable.
+     */
+    void operator=(const Database &) = delete;
+
+protected:
+    ~Database() = default;
+     Database() = default;
+
 public:
    static void connect();
 

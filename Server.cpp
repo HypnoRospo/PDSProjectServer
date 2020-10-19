@@ -11,6 +11,8 @@
 //#include <boost/asio/ts/internet.hpp>
 #include "Socket.h"
 #include "SocketWrap.h"
+#include "Database.h"
+#include "Message.h"
 
 #define BUFFER_DIM 255
 #define DIM_FILENAME 255
@@ -208,8 +210,6 @@ void thread_work()
         t.tv_usec = TIMEOUT_MICROSECONDI;
         /* timing impostato a 15 */
 
-
-
         std::cout << "In attesa di ricevere comandi..." << std::endl;
 
         /* ricezione comando client */
@@ -286,10 +286,4 @@ void thread_work()
         mtx.unlock();
 
     }
-
-
-
-    //close(s_connesso);
-    //pthread_exit(nullptr);
-
 }

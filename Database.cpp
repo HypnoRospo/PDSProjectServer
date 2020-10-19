@@ -34,18 +34,20 @@ void Database::connect() {
 
             stmt = con->createStatement();
             stmt->execute("DROP TABLE IF EXISTS users");
-            stmt->execute("CREATE TABLE users(user CHAR(70),password CHAR(70))");
+            stmt->execute("CREATE TABLE users(user CHAR(70),password CHAR(70),path CHAR(70))");
             delete stmt;
 
             /* '?' is the supported placeholder syntax */
-            prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
+            prep_stmt = con->prepareStatement("INSERT INTO users(user, password,path) VALUES (?, ?, ?)");
 
             prep_stmt->setString(1, "utente1");
             prep_stmt->setString(2, "password1");
+            prep_stmt->setString(3, "path1");
             prep_stmt->execute();
 
             prep_stmt->setString(1, "utente2");
             prep_stmt->setString(2, "password2");
+            prep_stmt->setString(3, "path2");
             prep_stmt->execute();
 
             std::cout << "Utenti inseriti " << std::endl;
@@ -59,4 +61,3 @@ void Database::connect() {
 
     }
 }
-
