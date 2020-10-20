@@ -4,6 +4,7 @@
 #ifndef PDSPROJECTSERVER_MESSAGE_H
 #define PDSPROJECTSERVER_MESSAGE_H
 
+
 #include <memory>
 #include <thread>
 #include <mutex>
@@ -17,6 +18,12 @@
 #include <cstring>
 
 
+enum class MsgType : uint32_t
+{
+    BLANK,GET,LOGIN,LOGOUT,
+};
+
+
 namespace Message {
 
     // Message Header is sent at start of all messages. The template allows us
@@ -28,17 +35,17 @@ namespace Message {
         uint32_t size = 0;
     };
 
-    // Message Body contains a header and a std::vector, containing raw bytes
-    // of infomation. This way the message can be variable length, but the size
-    // in the header must be updated.
+// Message Body contains a header and a std::vector, containing raw bytes
+// of infomation. This way the message can be variable length, but the size
+// in the header must be updated.
     template <typename T>
     struct message
     {
         // Header & Body vector
         message_header<T> header{};
-        std::vector<uint8_t> body;
+        std::vector<char> body;
 
-        // returns size of entire message packet in bytes
+// returns size of entire message packet in bytes
         size_t size() const
         {
             return body.size();
@@ -47,7 +54,8 @@ namespace Message {
         // Override for std::cout compatibility - produces friendly description of message
         friend std::ostream& operator << (std::ostream& os, const message<T>& msg)
         {
-            os << "ID:" << int(msg.header.id) << " Size:" << msg.header.size;
+            os << "ID:" << int(msg.header.id) << " Size:" << msg.header.size <<std::endl;
+            os << "BODY: " << msg.body.data() <<std::endl;
             return os;
         }
 
@@ -64,14 +72,11 @@ namespace Message {
             // Check that the type of the data being pushed is trivially copyable
             static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pushed into vector");
 
-            // Cache current size of vector, as this will be the point we insert the data
-            size_t i = msg.body.size();
-
             // Resize the vector by the size of the data being pushed
-            msg.body.resize(msg.body.size() + sizeof(DataType));
+            msg.body.resize(data.size());
 
             // Physically copy the data into the newly allocated vector space
-            std::memcpy(msg.body.data() + i, &data, sizeof(DataType));
+            std::copy(data.begin(), data.end(), msg.body.begin());
 
             // Recalculate the message size
             msg.header.size = msg.size();
@@ -87,33 +92,21 @@ namespace Message {
             // Check that the type of the data being pushed is trivially copyable
             static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pulled from vector");
 
-            // Cache the location towards the end of the vector where the pulled data starts
-            size_t i = msg.body.size() - sizeof(DataType);
-
             // Physically copy the data from the vector into the user variable
-            std::memcpy(&data, msg.body.data() + i, sizeof(DataType));
+            std::copy(msg.body.begin(), msg.body.end(), std::back_inserter(data));
 
-            // Shrink the vector to remove read bytes, and reset end position
-            msg.body.resize(i);
-
-            // Recalculate the message size
-            msg.header.size = msg.size();
-
-            // Return the target message so it can be "chained"
+            msg.header.id=MsgType::BLANK;
+            msg.header.size=0;
+            msg.body.clear();
             return msg;
+        }
+
+        void set_id(MsgType type) {
+            this->header.id=type;
         }
     };
 
 };
 
-
-enum class MsgType : uint32_t
-{
-    ServerAccept,
-    ServerDeny,
-    ServerPing,
-    MessageAll,
-    ServerMessage,
-};
 
 #endif //PDSPROJECTSERVER_MESSAGE_H

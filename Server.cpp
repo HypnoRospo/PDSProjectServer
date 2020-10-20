@@ -29,6 +29,7 @@ ssize_t send_err(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
+ssize_t leggi_header(int socket, MsgType *buffer, size_t buffdim);
 void work();
 void thread_work();
 void create_threads();
@@ -122,6 +123,13 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
     return read;
 }
 
+ssize_t leggi_header(int socket, MsgType *buffer, size_t buffdim)
+{
+
+ //todo
+  return 1;
+}
+
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     ssize_t send;
     char c,*filedata;
@@ -181,6 +189,7 @@ void thread_work()
     uint32_t filelastmod;
     FILE *fileptr;
     int s_connesso;
+    MsgType header;
     unsigned long my_socket_index;
 
     /* ciclo per accettare le connessioni*/
@@ -215,6 +224,22 @@ void thread_work()
         /* ricezione comando client */
         int s;
         if ((s = select(s_connesso + 1, &read_set, nullptr, nullptr, &t)) > 0) {
+
+            Message::message<MsgType> login_message;
+            //login_message.header.id=leggi_header(s_connesso,&header,sizeof(MsgType));
+
+            switch(login_message.header.id)
+            {
+                case (MsgType::LOGIN):
+
+                    break;
+
+                case (MsgType::BLANK):
+                    break;
+
+                default:
+                    break;
+            }
 
             read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
             if (read_result == -1) {
