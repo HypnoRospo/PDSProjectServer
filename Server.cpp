@@ -29,7 +29,7 @@ ssize_t send_err(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
-ssize_t leggi_header(int socket, MsgType *buffer, size_t buffdim);
+MsgType leggi_header(int socket);
 void work();
 void thread_work();
 void create_threads();
@@ -123,11 +123,40 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
     return read;
 }
 
-ssize_t leggi_header(int socket, MsgType *buffer, size_t buffdim)
+MsgType leggi_header(int socket)
 {
+    char comm;
+    ssize_t read;
+    /* legge un carattere e controlla i possibili errori */
+    do{
+        if(read = recv(socket, &comm, 4, 0) < 0){
+            if(INTERRUPTED_BY_SIGNAL)
+                continue;
+            else
+                return MsgType::ERROR;
+        }
+        else break;
+    }while(true);
 
- //todo
-  return 1;
+    /* salva il byte letto nel buffer */
+    if(read == 0) {
+
+        switch(comm)
+        {
+            case 0:
+                return MsgType::BLANK;
+            case 1:
+                return MsgType::GETPATH;
+            case 2:
+                return MsgType::LOGIN;
+            case 3:
+                return MsgType::LOGOUT;
+
+            default:
+                break;
+        }
+    }
+    return MsgType::ERROR;
 }
 
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
@@ -226,12 +255,19 @@ void thread_work()
         if ((s = select(s_connesso + 1, &read_set, nullptr, nullptr, &t)) > 0) {
 
             Message::message<MsgType> login_message;
-            //login_message.header.id=leggi_header(s_connesso,&header,sizeof(MsgType));
+            login_message.set_id(leggi_header(s_connesso));
 
             switch(login_message.header.id)
             {
-                case (MsgType::LOGIN):
+                 case (MsgType::LOGIN):
+                     std::cout<<"Header di login ricevuto"<<std::endl;
+                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
 
+                    std::cout << "Comando ricevuto: " << buffer << std::endl;
                     break;
 
                 case (MsgType::BLANK):
