@@ -33,6 +33,7 @@ MsgType leggi_header(int socket);
 void work();
 void thread_work();
 void create_threads();
+bool checkUser(std::string &str);
 
 /**
  * Static methods should be defined outside the class.
@@ -40,6 +41,7 @@ void create_threads();
 
 Server* Server::pinstance_{nullptr};
 std::mutex Server::mutex_;
+Database *database;
 std::vector<std::thread> threads;
 ServerSocket *ss {nullptr};
 std::vector<Socket> sockets;
@@ -81,6 +83,9 @@ void create_threads()
 void work() {
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
+    database= new Database();
+    database->create_instance();
+    std::cout << "In attesa di connessioni..." << std::endl;
     create_threads();
 }
 
@@ -91,7 +96,7 @@ ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
 ssize_t send_err(int sock){
     ssize_t s;
     s = ssend(sock, ERRORE, sizeof(ERRORE), MSG_NOSIGNAL);
-    std::cout<<"Errore nella send"<<std::endl;
+    std::cout<<"Errore connessione"<<std::endl;
     return s;
 }
 
@@ -208,6 +213,21 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     return fsize;
 }
 
+bool checkUser(std::string &str) {
+    size_t pos = 0;
+    std::string user;
+    std::string delimiter = " ";
+    //  while ((pos = str.find(delimiter)) != std::string::npos) {
+    pos = str.find(delimiter);
+    user = str.substr(0, pos);
+    str.erase(0, pos + delimiter.length());
+    std::string pass = str.substr(0, str.find("\n"));
+    //  }
+    std::cout << "username: " << user << " password: " << pass << std::endl;
+    return database->searchUser(user, pass);
+
+}
+
 void thread_work()
 {
     ssize_t read_result;
@@ -218,14 +238,13 @@ void thread_work()
     uint32_t filelastmod;
     FILE *fileptr;
     int s_connesso;
-    MsgType header;
     unsigned long my_socket_index;
+    bool logged=false;
 
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
         unsigned int len = sizeof(addr);
-        std::cout << "In attesa di connessioni..." << std::endl;
         sockets.push_back( ss->accept_request(&addr,&len));
         mtx.lock();
         s_connesso= sockets.back().getSockfd();
@@ -239,6 +258,7 @@ void thread_work()
 
     /* ciclo che riceve i comandi client */
     while (true) {
+        Message::message<MsgType> incoming_message;
         fd_set read_set;
         FD_ZERO(&read_set);
         FD_SET(s_connesso, &read_set);
@@ -254,10 +274,9 @@ void thread_work()
         int s;
         if ((s = select(s_connesso + 1, &read_set, nullptr, nullptr, &t)) > 0) {
 
-            Message::message<MsgType> login_message;
-            login_message.set_id(leggi_header(s_connesso));
+            incoming_message.set_id(leggi_header(s_connesso));
 
-            switch(login_message.header.id)
+            switch(incoming_message.header.id)
             {
                  case (MsgType::LOGIN):
                      std::cout<<"Header di login ricevuto"<<std::endl;
@@ -266,71 +285,95 @@ void thread_work()
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         break;
                     }
+                    else
+                    {
+                        std::string login_info(buffer);
+                        std::cout << "Comando ricevuto: " << login_info << std::endl;
+
+                        if(checkUser(login_info))
+                        {
+                            std::cout<<"Utente loggato correttamente"<<std::endl;
+                            logged=true;
+                        }
+                        else
+                            std::cout<<"Utente non riconosciuto"<<std::endl;
+                        break;
+                    }
+
+                case(MsgType::GETPATH):
+
+                    if(!logged)
+                    {
+                        std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
+                        //todo  mandare messaggio al client di loggarsi prima
+                        break;
+                    }
+
+                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
 
                     std::cout << "Comando ricevuto: " << buffer << std::endl;
-                    break;
 
-                case (MsgType::BLANK):
+                    /* controllo inizio GET e fine  */
+                    if (strncmp(GET, buffer, strlen(GET)) == 0 &&
+                        strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {
+
+                        int i, j = 0;
+                        memset(filename, 0, sizeof(char) * DIM_FILENAME);
+                        for (i = strlen(GET); i < strlen(buffer) &&
+                                              (buffer[i] != '\r' && buffer[i + 1] != '\n'); i++) {
+
+                            filename[j] = buffer[i];
+                            j++;
+                        }
+                        struct stat filestat;
+                        /* open file and get its stat */
+                        if ((fileptr = fopen(filename, "rb")) == NULL ||
+                            stat(filename, &filestat) != 0) {
+                            std::cout << "Impossibile aprire il file: " << filename << std::endl;
+                            /* send error message to client and close the connection */
+                            send_err(s_connesso);
+                            break;
+                        }
+                        filesize = filestat.st_size;
+                        filelastmod = filestat.st_mtime;
+
+                        std::cout << "Ricerca file andata a buon fine." << std::endl;
+                        send_result = send_file(s_connesso, filesize, filelastmod,
+                                                fileptr);
+                        if (send_result < 0) {
+
+                            send_err(s_connesso);
+                            break;
+                        }
+                        std::cout << "File mandato con successo." << std::endl;
+                        fclose(fileptr);
+                        continue;
+
+                    } else if (strcmp(FINE, buffer) == 0) {
+                        break;
+                    } else {
+                        send_err(s_connesso);
+                        break;
+                    }
+
+                case (MsgType::LOGOUT):
+                    logged=false;
+                    std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
                     break;
 
                 default:
                     break;
             }
-
-            read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
-            if (read_result == -1) {
-                std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+            if(!logged)
                 break;
-            }
-
-            std::cout << "Comando ricevuto: " << buffer << std::endl;
-
-            /* controllo inizio GET e fine  */
-            if (strncmp(GET, buffer, strlen(GET)) == 0 &&
-                strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {
-
-                int i, j = 0;
-                memset(filename, 0, sizeof(char) * DIM_FILENAME);
-                for (i = strlen(GET); i < strlen(buffer) &&
-                                      (buffer[i] != '\r' && buffer[i + 1] != '\n'); i++) {
-
-                    filename[j] = buffer[i];
-                    j++;
-                }
-                struct stat filestat;
-                /* open file and get its stat */
-                if ((fileptr = fopen(filename, "rb")) == NULL ||
-                    stat(filename, &filestat) != 0) {
-                    std::cout << "Impossibile aprire il file: " << filename << std::endl;
-                    /* send error message to client and close the connection */
-                    send_err(s_connesso);
-                    break;
-                }
-                filesize = filestat.st_size;
-                filelastmod = filestat.st_mtime;
-
-                std::cout << "Ricerca file andata a buon fine." << std::endl;
-                send_result = send_file(s_connesso, filesize, filelastmod,
-                                        fileptr);
-                if (send_result < 0) {
-
-                    send_err(s_connesso);
-                    break;
-                }
-                std::cout << "File mandato con successo." << std::endl;
-                fclose(fileptr);
-                continue;
-
-            } else if (strcmp(FINE, buffer) == 0) {
-                break;
-            } else {
-                send_err(s_connesso);
-                break;
-            }
         }
             /* select() ritorna 0, timeout */
         else if (s == 0) {
-            std::cout << "Nessuna risposta dopo" << TIMEOUT_SECONDI << "secondi, chiusura." << std::endl;
+            std::cout << "Nessuna risposta dopo " << TIMEOUT_SECONDI << " secondi, chiusura." << std::endl;
             send_err(s_connesso);
             break;
 
@@ -346,5 +389,6 @@ void thread_work()
         sockets.erase(sockets.begin()+my_socket_index);
         mtx.unlock();
 
+        std::cout << "In attesa di connessioni..." << std::endl;
     }
 }

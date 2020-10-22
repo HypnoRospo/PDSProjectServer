@@ -29,10 +29,7 @@ private:
     static std::mutex mutex_;
 
 protected:
-    explicit Server(int  port): port_(port)
-    {
-        AccessDatabase();
-    }
+    explicit Server(int  port): port_(port) {}
     ~Server() = default;
     int port_;
 
@@ -56,12 +53,11 @@ public:
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
      */
-    static void AccessDatabase()
-    {
-        // ...
-       Database::connect();
-    }
-      int getPort() const{
+
+     //access database for example
+     //...
+
+      [[nodiscard]] int getPort() const{
         return port_;
     }
 };

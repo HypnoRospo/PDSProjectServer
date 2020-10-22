@@ -19,7 +19,11 @@
 class Socket {
 private:
      int sockfd;
-     explicit Socket(int sockfd) : sockfd(sockfd)
+public:
+    int getSockfd() const;
+
+private:
+    explicit Socket(int sockfd) : sockfd(sockfd)
      {
          std::cout << "Socket " <<sockfd<< " (active) created!" <<std::endl;
      }
@@ -60,16 +64,13 @@ public:
         return *this;
     }
 
-    int getSockfd() const;
-
-
     //qui vanno le funzioni read e write con recv e send riscritte ( include .h)
     //ssize_t read(char*buffer,size_t len, int options){}
     //write,connect
 };
 
 
-class ServerSocket : private Socket  //costruttore di ServerSocket ereditato privatamente, come i suoi metodi
+ class ServerSocket : private Socket  //costruttore di ServerSocket ereditato privatamente, come i suoi metodi
 {
 public:
     ServerSocket(int port)
@@ -109,6 +110,11 @@ public:
 
 
         return Socket(fd);
+    }
+
+    int getSock()
+    {
+        return getSockfd();
     }
 
 };

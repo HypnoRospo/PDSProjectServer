@@ -6,8 +6,16 @@
 #define PDSPROJECTSERVER_DATABASE_H
 
 
+#include <mutex>
+
 class Database {
 
+private:
+    static Database* databaseptr_;
+    static std::mutex mutexdb_;
+    void connect();
+
+public:
     /**
  * Singletons should not be cloneable.
  */
@@ -16,15 +24,18 @@ class Database {
      * Singletons should not be assignable.
      */
     void operator=(const Database &) = delete;
+     Database() = default;
+
+
+
+    Database* create_instance();
+    static bool searchUser(std::string &user,std::string &pass);
+
+
 
 protected:
     ~Database() = default;
-     Database() = default;
-
-public:
-   static void connect();
 
 };
-
 
 #endif //PDSPROJECTSERVER_DATABASE_H
