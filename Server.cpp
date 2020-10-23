@@ -23,9 +23,12 @@
 #define OK "+OK\r\n"
 #define FINE "FINE\r\n\0"
 #define ERRORE "-ERR\r\n"
-
+#define ERRORE_LOGIN "-SERVER: Impossibile procedere, necessaria autenticazione\r\n"
+#define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
 
 ssize_t send_err(int sock);
+ssize_t send_err_login(int sock);
+ssize_t send_login_ok(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
@@ -33,7 +36,6 @@ MsgType leggi_header(int socket);
 void work();
 void thread_work();
 void create_threads();
-bool checkUser(std::string &str);
 
 /**
  * Static methods should be defined outside the class.
@@ -41,7 +43,6 @@ bool checkUser(std::string &str);
 
 Server* Server::pinstance_{nullptr};
 std::mutex Server::mutex_;
-Database *database;
 std::vector<std::thread> threads;
 ServerSocket *ss {nullptr};
 std::vector<Socket> sockets;
@@ -83,8 +84,7 @@ void create_threads()
 void work() {
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
-    database= new Database();
-    database->create_instance();
+    Database::create_instance();
     std::cout << "In attesa di connessioni..." << std::endl;
     create_threads();
 }
@@ -97,6 +97,19 @@ ssize_t send_err(int sock){
     ssize_t s;
     s = ssend(sock, ERRORE, sizeof(ERRORE), MSG_NOSIGNAL);
     std::cout<<"Errore connessione"<<std::endl;
+    return s;
+}
+
+ssize_t send_err_login(int sock){
+    ssize_t s;
+    s = ssend(sock, ERRORE_LOGIN, sizeof(ERRORE_LOGIN), MSG_NOSIGNAL);
+    return s;
+}
+
+ssize_t send_login_ok(int sock)
+{
+    ssize_t  s;
+    s = ssend(sock, OK_LOGIN, sizeof(OK_LOGIN), MSG_NOSIGNAL);
     return s;
 }
 
@@ -134,7 +147,7 @@ MsgType leggi_header(int socket)
     ssize_t read;
     /* legge un carattere e controlla i possibili errori */
     do{
-        if(read = recv(socket, &comm, 4, 0) < 0){
+        if(read = recv(socket, &comm, sizeof(uint32_t), 0) < 0){
             if(INTERRUPTED_BY_SIGNAL)
                 continue;
             else
@@ -213,21 +226,6 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     return fsize;
 }
 
-bool checkUser(std::string &str) {
-    size_t pos = 0;
-    std::string user;
-    std::string delimiter = " ";
-    //  while ((pos = str.find(delimiter)) != std::string::npos) {
-    pos = str.find(delimiter);
-    user = str.substr(0, pos);
-    str.erase(0, pos + delimiter.length());
-    std::string pass = str.substr(0, str.find("\n"));
-    //  }
-    std::cout << "username: " << user << " password: " << pass << std::endl;
-    return database->searchUser(user, pass);
-
-}
-
 void thread_work()
 {
     ssize_t read_result;
@@ -287,13 +285,21 @@ void thread_work()
                     }
                     else
                     {
-                        std::string login_info(buffer);
-                        std::cout << "Comando ricevuto: " << login_info << std::endl;
+                        std::vector<char> vect;
+                        for(unsigned int i; buffer[i]!='\0'; i++ )
+                        {
+                            vect.push_back(buffer[i]);
+                        }
+                        vect.pop_back();
 
-                        if(checkUser(login_info))
+                        incoming_message << vect;
+                        std::cout << "Comando ricevuto: " << vect.data() << std::endl;
+
+                        if(Database::checkUser(vect))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
                             logged=true;
+                            send_login_ok(s_connesso);
                         }
                         else
                             std::cout<<"Utente non riconosciuto"<<std::endl;
@@ -305,7 +311,7 @@ void thread_work()
                     if(!logged)
                     {
                         std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
-                        //todo  mandare messaggio al client di loggarsi prima
+                        send_err_login(s_connesso);
                         break;
                     }
 
@@ -316,7 +322,7 @@ void thread_work()
                     }
 
                     std::cout << "Comando ricevuto: " << buffer << std::endl;
-
+                    incoming_message << std::string(buffer);
                     /* controllo inizio GET e fine  */
                     if (strncmp(GET, buffer, strlen(GET)) == 0 &&
                         strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {

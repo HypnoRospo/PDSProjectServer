@@ -11,18 +11,20 @@
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
 #include "Database.h"
+#include <sodium.h>
+#include <sodium/crypto_pwhash.h>
 
 using namespace sql;
 Database* Database::databaseptr_{nullptr};
 std::mutex Database::mutexdb_;
-
+unsigned char key[crypto_secretbox_KEYBYTES] ={"pds_project_key"};
+unsigned char nonce[crypto_secretbox_NONCEBYTES]={"prova_nonce"};
 
  sql::Driver *driver;
  sql::Connection *con;
  sql::Statement *stmt;
  sql::ResultSet *res;
  sql::PreparedStatement *prep_stmt;
-
  Database* Database::create_instance()
 {
     std::lock_guard<std::mutex> lock(mutexdb_);
@@ -38,7 +40,7 @@ std::mutex Database::mutexdb_;
     return databaseptr_;
 }
 
-void Database::connect() {
+ void Database::connect() {
     {
         try {
             /* Create a connection */
@@ -98,4 +100,31 @@ bool Database::searchUser(std::string &user,std::string &pass){
         std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
         return false;
     }
+}
+
+bool Database::checkUser(std::vector<char> &vect_user) {
+    size_t pos = 0;
+    std::string user;
+    std::string delimiter = " ";
+    std::string decrypt;
+    decrypt=Database::decrypt(vect_user);
+    //  while ((pos = str.find(delimiter)) != std::string::npos) {
+    pos = decrypt.find(delimiter);
+    user = decrypt.substr(0, pos);
+    decrypt.erase(0, pos + delimiter.length());
+    std::string pass = decrypt.substr(0, decrypt.length());
+
+    //  }
+    std::cout << "username: " << user << " password: " << pass << std::endl;
+    return Database::searchUser(user, pass);
+}
+
+ std::string Database::decrypt(std::vector<char>& vect)
+{
+    unsigned char decrypted[vect.size()];
+    if (crypto_secretbox_open_easy(decrypted, (const unsigned char *) vect.data(), vect.size(), nonce, key) != 0) {
+        /* message forged! */
+        std::cout<<"Errore decrypt." <<std::endl;
+    }
+    return std::string(reinterpret_cast<const char *>(decrypted));
 }

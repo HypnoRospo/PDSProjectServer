@@ -7,13 +7,14 @@
 
 
 #include <mutex>
-
+#include <vector>
 class Database {
 
 private:
     static Database* databaseptr_;
     static std::mutex mutexdb_;
-    void connect();
+     static void connect();
+    static std::string decrypt(std::vector<char>& vect);
 
 public:
     /**
@@ -28,9 +29,9 @@ public:
 
 
 
-    Database* create_instance();
+    static Database* create_instance();
     static bool searchUser(std::string &user,std::string &pass);
-
+    static bool checkUser(std::vector<char> &vect_user);
 
 
 protected:
