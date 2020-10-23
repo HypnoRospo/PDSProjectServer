@@ -286,11 +286,10 @@ void thread_work()
                     else
                     {
                         std::vector<char> vect;
-                        for(unsigned int i; buffer[i]!='\0'; i++ )
+                        for(unsigned int i; buffer[i]!='\n'; i++ )
                         {
                             vect.push_back(buffer[i]);
                         }
-                        vect.pop_back();
 
                         incoming_message << vect;
                         std::cout << "Comando ricevuto: " << vect.data() << std::endl;
