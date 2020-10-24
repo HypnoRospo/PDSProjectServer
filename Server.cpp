@@ -25,10 +25,12 @@
 #define ERRORE "-ERR\r\n"
 #define ERRORE_LOGIN "-SERVER: Impossibile procedere, necessaria autenticazione\r\n"
 #define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
+#define OK_NONCE "-SERVER: NONCE SETTED\r\n"
 
 ssize_t send_err(int sock);
 ssize_t send_err_login(int sock);
 ssize_t send_login_ok(int sock);
+ssize_t send_nonce_ok(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
@@ -113,6 +115,13 @@ ssize_t send_login_ok(int sock)
     return s;
 }
 
+ssize_t send_nonce_ok(int sock)
+{
+    ssize_t  s;
+    s = ssend(sock, OK_NONCE, sizeof(OK_NONCE), MSG_NOSIGNAL);
+    return s;
+}
+
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
     ssize_t read, read_count = 0;
     char comm= 0;
@@ -138,7 +147,7 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
     }
     /* appendere per farlo diventare una stringa */
     buffer[read_count] = '\0';
-    return read;
+    return read_count-1;
 }
 
 MsgType leggi_header(int socket)
@@ -162,7 +171,7 @@ MsgType leggi_header(int socket)
         switch(comm)
         {
             case 0:
-                return MsgType::BLANK;
+                return MsgType::NONCE;
             case 1:
                 return MsgType::GETPATH;
             case 2:
@@ -276,6 +285,24 @@ void thread_work()
 
             switch(incoming_message.header.id)
             {
+                case (MsgType::NONCE):
+                    std::cout<<"Header di nonce ricevuto"<<std::endl;
+                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
+                    else
+                    {
+                        std::string body_nonce; // o vector<char> indifferente..tanto viene riallocato in incoming message
+                        std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_nonce));
+                        incoming_message << body_nonce; //possiamo passare direttamente body cipher, funziona anche i messaggi
+
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+                        Database::setNonce(incoming_message.body.data());
+                        send_nonce_ok(s_connesso);
+                    }
+                    break;
                  case (MsgType::LOGIN):
                      std::cout<<"Header di login ricevuto"<<std::endl;
                     read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
@@ -285,16 +312,13 @@ void thread_work()
                     }
                     else
                     {
-                        std::vector<char> vect;
-                        for(unsigned int i; buffer[i]!='\n'; i++ )
-                        {
-                            vect.push_back(buffer[i]);
-                        }
+                         std::string body_cipher; // o vector<char> indifferente..tanto viene riallocato in incoming message
+                         std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher));
+                         incoming_message << body_cipher; //possiamo passare direttamente body cipher, funziona anche i messaggi
 
-                        incoming_message << vect;
-                        std::cout << "Comando ricevuto: " << vect.data() << std::endl;
+                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(vect))
+                        if(Database::checkUser(incoming_message.body))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
                             logged=true;
@@ -373,7 +397,7 @@ void thread_work()
                 default:
                     break;
             }
-            if(!logged)
+            if(!logged && incoming_message.header.id!=MsgType::NONCE)
                 break;
         }
             /* select() ritorna 0, timeout */

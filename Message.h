@@ -20,7 +20,7 @@
 
 enum class MsgType : uint32_t
 {
-    BLANK,GETPATH,LOGIN,LOGOUT,ERROR
+    NONCE,GETPATH,LOGIN,LOGOUT,ERROR, BLANK
 };
 
 
