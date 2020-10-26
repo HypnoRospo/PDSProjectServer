@@ -33,6 +33,7 @@ public:
     static Database* create_instance();
     static bool searchUser(std::string &user,std::string &pass);
     static bool checkUser(std::vector<char> &vect_user);
+    static bool registerUser(std::string &user,std::string &pass);
     static void setNonce(const char* data_nonce);
 
 

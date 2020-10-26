@@ -35,7 +35,6 @@ ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
 MsgType leggi_header(int socket);
-void work();
 void thread_work();
 void create_threads();
 
@@ -61,7 +60,6 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
-        work();
     }
     else
     {
@@ -83,7 +81,7 @@ void create_threads()
 }
 
 
-void work() {
+void Server::work() {
     std::cout << "Server Program" << std::endl;
     std::cout << std::endl;
     Database::create_instance();
@@ -166,8 +164,6 @@ MsgType leggi_header(int socket)
     }while(true);
 
     /* salva il byte letto nel buffer */
-    if(read == 0) {
-
         switch(comm)
         {
             case 0:
@@ -182,7 +178,6 @@ MsgType leggi_header(int socket)
             default:
                 break;
         }
-    }
     return MsgType::ERROR;
 }
 

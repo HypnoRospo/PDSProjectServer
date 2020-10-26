@@ -13,7 +13,8 @@
 #include "Database.h"
 #include <sodium.h>
 #include <sodium/crypto_pwhash.h>
-
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
 using namespace sql;
 Database* Database::databaseptr_{nullptr};
 std::mutex Database::mutexdb_;
@@ -25,7 +26,7 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
  sql::Statement *stmt;
  sql::ResultSet *res;
  sql::PreparedStatement *prep_stmt;
- std::map<std::string,std::string> map;
+
  Database* Database::create_instance()
 {
     std::lock_guard<std::mutex> lock(mutexdb_);
@@ -56,28 +57,10 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
 
             stmt = con->createStatement();
             stmt->execute("DROP TABLE IF EXISTS users");
-            stmt->execute("CREATE TABLE users(user CHAR(70) NOT NULL,password CHAR(128) NOT NULL,path CHAR(70) NOT NULL, PRIMARY KEY (user))");
+            stmt->execute("CREATE TABLE users(user CHAR(70) NOT NULL,password CHAR(128) NOT NULL, PRIMARY KEY (user))");
             delete stmt;
+            /* connect */
 
-            /* '?' is the supported placeholder syntax */
-            prep_stmt = con->prepareStatement("INSERT INTO users(user, password,path) VALUES (?, ?, ?)");
-
-            char hashed_password[crypto_pwhash_STRBYTES];
-            std::string pass = "password1";
-
-            if (crypto_pwhash_str
-                        (hashed_password, pass.c_str(), pass.length(),
-                         crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
-                /* out of memory */
-            }
-
-            prep_stmt->setString(1, "user1");
-            prep_stmt->setString(2, hashed_password);
-            prep_stmt->setString(3, "path1");
-            prep_stmt->execute();
-
-            std::cout << "Utenti inseriti " << std::endl;
-            delete prep_stmt;
             //delete con;
 
         } catch (sql::SQLException &e) {
@@ -88,6 +71,51 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
     }
 
 }
+
+bool Database::registerUser(std::string &user,std::string &pass)
+{
+
+    boost::filesystem::path directory("./server_users/"+user);
+    if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
+    {
+        //boost::filesystem::directory_iterator begin(directory);
+        //boost::filesystem::directory_iterator end;
+        /* //stampa il contenuto
+        while(begin != end)
+        {
+            std::cout << *begin << " "; //controllo checksum or hash
+            ++begin;
+        }
+        std::cout << "\n";
+         */
+        std::cout<<"Utente gia' registrato"<<std::endl;
+        return false;
+    }
+    else
+    {
+        /* '?' is the supported placeholder syntax */
+        prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
+
+        char hashed_password[crypto_pwhash_STRBYTES];
+
+        if (crypto_pwhash_str
+                    (hashed_password, pass.c_str(), pass.length(),
+                     crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
+            /* out of memory */
+        }
+
+
+        prep_stmt->setString(1, user);
+        prep_stmt->setString(2, hashed_password);
+        prep_stmt->execute();
+        std::cout << "Utente inserito nel database " << std::endl;
+        delete prep_stmt;
+
+
+        return true;
+    }
+}
+
 bool Database::searchUser(std::string &user,std::string &pass){
     try {
             // sql::ResultSet* res = stmt->executeQuery("SELECT * FROM users"); //Not useful just for check that connection works
@@ -104,11 +132,6 @@ bool Database::searchUser(std::string &user,std::string &pass){
                     /* wrong password */
                     return false;
                 }
-                //allora esiste, prendo il path ( se non e' presente )
-                std::string path= res->getString("path");
-                auto it= map.find(user);
-                if(it == map.end()) // non esiste
-                    map[user]=path; //oppure insert ({..})
                 return true;
             }
             else return false;

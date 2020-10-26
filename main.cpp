@@ -1,7 +1,8 @@
 #include <iostream>
 #include "Server.h"
-
+#include <memory>
 int main() {
-     Server::start(5000); //gli passeremo la porta tramite linea di comando
+    std::unique_ptr<Server> server(Server::start(5000));
+    server->work();
     return 0;
 }

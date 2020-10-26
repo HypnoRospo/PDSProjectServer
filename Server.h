@@ -30,7 +30,6 @@ private:
 
 protected:
     explicit Server(int  port): port_(port) {}
-    ~Server() = default;
     int port_;
 
 public:
@@ -38,6 +37,8 @@ public:
      * Singletons should not be cloneable.
      */
     Server(Server &other) = delete;
+    ~Server() = default;
+
     /**
      * Singletons should not be assignable.
      */
@@ -49,6 +50,7 @@ public:
      * object stored in the static field.
      */
     static Server *start( int port);
+    void work();
     /**
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
@@ -56,6 +58,7 @@ public:
 
      //access database for example
      //...
+
 
       [[nodiscard]] int getPort() const{
         return port_;
