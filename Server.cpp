@@ -330,13 +330,13 @@ void thread_work()
                     }
                     else
                     {
-                         std::string body_cipher; // o vector<char> indifferente..tanto viene riallocato in incoming message
+                         std::vector<char> body_cipher;
                          std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher));
                          incoming_message << body_cipher; //possiamo passare direttamente body cipher, funziona anche i messaggi
 
                          std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(MsgType::LOGIN,incoming_message.body))
+                        if(Database::checkUser(MsgType::LOGIN,body_cipher))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
                             logged=true;
@@ -425,13 +425,13 @@ void thread_work()
                     }
                     else
                     {
-                        std::string body_cipher_r; // o vector<char> indifferente..tanto viene riallocato in incoming message
+                        std::vector<char> body_cipher_r; // o vector<char> indifferente..tanto viene riallocato in incoming message
                         std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher_r));
                         incoming_message << body_cipher_r; //possiamo passare direttamente body cipher, funziona anche i messaggi
 
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(MsgType::REGISTER,incoming_message.body))
+                        if(Database::checkUser(MsgType::REGISTER,body_cipher_r))
                         {
                             std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
                             send_register_ok(s_connesso);

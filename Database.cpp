@@ -181,15 +181,14 @@ bool Database::checkUser(MsgType msg, std::vector<char> &vect_user) {
 
  std::string Database::decrypt(std::vector<char>& vect)
 {
-    std::string decrypt_str;
     unsigned int dim=vect.size()-crypto_secretbox_MACBYTES;
     unsigned char decrypted[dim];
     if (crypto_secretbox_open_easy(decrypted, (const unsigned char *) vect.data(), vect.size(), nonce, key) != 0) {
         /* message forged! */
         std::cout<<"Errore decrypt." <<std::endl;
     }
-    std::copy(&decrypted[0],&decrypted[dim],std::back_inserter(decrypt_str));
-    return decrypt_str;
+    std::string result(reinterpret_cast<const char *>(decrypted),dim);
+    return result;
 }
 
 void Database::setNonce(const char* data_nonce)
