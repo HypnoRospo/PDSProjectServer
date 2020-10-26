@@ -15,7 +15,6 @@
 #include "Message.h"
 #include <boost/filesystem.hpp>
 
-#define BUFFER_DIM 255
 #define DIM_FILENAME 255
 #define TIMEOUT_SECONDI 15
 #define TIMEOUT_MICROSECONDI 0
@@ -38,7 +37,7 @@ ssize_t send_login_ok(int sock);
 ssize_t send_nonce_ok(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file);
-ssize_t leggi_comando(int socket, char *buffer, size_t buffdim);
+ssize_t leggi_comando(int socket, std::vector<char>& buffer);
 MsgType leggi_header(int socket);
 void thread_work();
 void create_threads();
@@ -139,11 +138,11 @@ ssize_t send_register_ok(int sock)
     return s;
 }
 
-ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
+ssize_t leggi_comando(int socket, std::vector<char>& buffer){
     ssize_t read, read_count = 0;
     char comm= 0;
 
-    while(comm != '\n' && read_count < buffdim - 1){
+    while(comm != '\n'){
 
         /* legge un carattere e controlla i possibili errori */
         do{
@@ -158,18 +157,22 @@ ssize_t leggi_comando(int socket, char *buffer, size_t buffdim){
 
         /* salva il byte letto nel buffer */
         if(read == 0) {
-            buffer[read_count] = comm;
-            read_count++;
+
+            if(comm!='\n')
+            {
+                buffer.push_back(comm);
+                read_count++;
+            }
         }
     }
     /* appendere per farlo diventare una stringa */
-    buffer[read_count] = '\0';
-    return read_count-1;
+    //buffer.push_back('\0');
+    return read_count;
 }
 
 MsgType leggi_header(int socket)
 {
-    char comm;
+    int comm;
     ssize_t read;
     /* legge un carattere e controlla i possibili errori */
     do{
@@ -257,7 +260,6 @@ void thread_work()
 {
     ssize_t read_result;
     ssize_t send_result;
-    char buffer[BUFFER_DIM];
     char filename[DIM_FILENAME];
     uint32_t filesize;
     uint32_t filelastmod;
@@ -284,6 +286,7 @@ void thread_work()
     /* ciclo che riceve i comandi client */
     while (true) {
         Message::message<MsgType> incoming_message;
+        std::vector<char> buffer;
         fd_set read_set;
         FD_ZERO(&read_set);
         FD_SET(s_connesso, &read_set);
@@ -305,17 +308,14 @@ void thread_work()
             {
                 case (MsgType::NONCE):
                     std::cout<<"Header di nonce ricevuto"<<std::endl;
-                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    read_result = leggi_comando(s_connesso, buffer);
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         break;
                     }
                     else
                     {
-                        std::string body_nonce; // o vector<char> indifferente..tanto viene riallocato in incoming message
-                        std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_nonce));
-                        incoming_message << body_nonce; //possiamo passare direttamente body cipher, funziona anche i messaggi
-
+                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         Database::setNonce(incoming_message.body.data());
                         send_nonce_ok(s_connesso);
@@ -323,20 +323,18 @@ void thread_work()
                     break;
                  case (MsgType::LOGIN):
                      std::cout<<"Header di login ricevuto"<<std::endl;
-                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    read_result = leggi_comando(s_connesso, buffer);
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         break;
                     }
                     else
                     {
-                         std::vector<char> body_cipher;
-                         std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher));
-                         incoming_message << body_cipher; //possiamo passare direttamente body cipher, funziona anche i messaggi
+                         incoming_message << buffer;
 
                          std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(MsgType::LOGIN,body_cipher))
+                        if(Database::checkUser(MsgType::LOGIN,buffer))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
                             logged=true;
@@ -352,6 +350,7 @@ void thread_work()
 
                 case(MsgType::GETPATH):
 
+                {
                     if(!logged)
                     {
                         std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
@@ -359,24 +358,27 @@ void thread_work()
                         break;
                     }
 
-                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    read_result = leggi_comando(s_connesso, buffer);
+                    buffer.push_back('\n');
+                    buffer.push_back('\0');
+                    std::string buffer_str(buffer.begin(),buffer.end());
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         break;
                     }
 
-                    std::cout << "Comando ricevuto: " << buffer << std::endl;
-                    incoming_message << std::string(buffer);
+                    std::cout << "Comando ricevuto: " << buffer.data() << std::endl;
+                    incoming_message << buffer;
                     /* controllo inizio GET e fine  */
-                    if (strncmp(GET, buffer, strlen(GET)) == 0 &&
-                        strcmp(TERMINAZIONE, buffer + strlen(buffer) - strlen(TERMINAZIONE)) == 0) {
+                    if (strncmp(GET, buffer_str.c_str() ,strlen(GET)) == 0 &&
+                        strcmp(TERMINAZIONE, buffer_str.c_str() + strlen(buffer_str.c_str())- strlen(TERMINAZIONE)) == 0) {
 
                         int i, j = 0;
                         memset(filename, 0, sizeof(char) * DIM_FILENAME);
-                        for (i = strlen(GET); i < strlen(buffer) &&
-                                              (buffer[i] != '\r' && buffer[i + 1] != '\n'); i++) {
+                        for (i = strlen(GET); i < strlen(buffer_str.c_str()) &&
+                                              (buffer_str.c_str()[i] != '\r' && buffer_str.c_str()[i + 1] != '\n'); i++) {
 
-                            filename[j] = buffer[i];
+                            filename[j] = buffer_str.c_str()[i];
                             j++;
                         }
                         struct stat filestat;
@@ -403,12 +405,13 @@ void thread_work()
                         fclose(fileptr);
                         continue;
 
-                    } else if (strcmp(FINE, buffer) == 0) {
+                    } else if (strcmp(FINE, buffer.data()) == 0) {
                         break;
                     } else {
                         send_err(s_connesso);
                         break;
                     }
+                }
 
                 case (MsgType::LOGOUT):
                     logged=false;
@@ -418,20 +421,18 @@ void thread_work()
 
                 case(MsgType::REGISTER):
                     std::cout<<"Header register ricevuto"<<std::endl;
-                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    read_result = leggi_comando(s_connesso, buffer);
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         break;
                     }
                     else
                     {
-                        std::vector<char> body_cipher_r; // o vector<char> indifferente..tanto viene riallocato in incoming message
-                        std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher_r));
-                        incoming_message << body_cipher_r; //possiamo passare direttamente body cipher, funziona anche i messaggi
+                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
 
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(MsgType::REGISTER,body_cipher_r))
+                        if(Database::checkUser(MsgType::REGISTER,buffer))
                         {
                             std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
                             send_register_ok(s_connesso);

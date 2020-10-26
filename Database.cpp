@@ -179,7 +179,7 @@ bool Database::checkUser(MsgType msg, std::vector<char> &vect_user) {
      }
 }
 
- std::string Database::decrypt(std::vector<char>& vect)
+ std::string Database::decrypt(const std::vector<char>& vect)
 {
     unsigned int dim=vect.size()-crypto_secretbox_MACBYTES;
     unsigned char decrypted[dim];

@@ -15,7 +15,7 @@ private:
     static Database* databaseptr_;
     static std::mutex mutexdb_;
      static void connect();
-    static std::string decrypt(std::vector<char>& vect);
+    static std::string decrypt(const std::vector<char>& vect);
 
 
 public:
