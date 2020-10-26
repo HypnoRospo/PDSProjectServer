@@ -27,6 +27,7 @@ class Server
 private:
     static Server * pinstance_;
     static std::mutex mutex_;
+    std::string server_path;
 
 protected:
     explicit Server(int  port): port_(port) {}
@@ -60,7 +61,7 @@ public:
      //...
 
 
-      [[nodiscard]] int getPort() const{
+    int getPort() const{
         return port_;
     }
 };

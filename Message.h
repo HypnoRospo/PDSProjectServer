@@ -20,9 +20,8 @@
 
 enum class MsgType : uint32_t
 {
-    NONCE,GETPATH,LOGIN,LOGOUT,ERROR, BLANK
+    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,ERROR, BLANK
 };
-
 
 namespace Message {
 

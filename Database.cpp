@@ -15,6 +15,7 @@
 #include <sodium/crypto_pwhash.h>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/operations.hpp>
+#include "Message.h"
 using namespace sql;
 Database* Database::databaseptr_{nullptr};
 std::mutex Database::mutexdb_;
@@ -75,7 +76,10 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
 bool Database::registerUser(std::string &user,std::string &pass)
 {
 
-    boost::filesystem::path directory("./server_users/"+user);
+    boost::system::error_code ec;
+    std::string path_server("../server_user/");
+    std::string path_user(path_server+user);
+    boost::filesystem::path directory(path_user);
     if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
     {
         //
@@ -89,7 +93,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
         }
         std::cout << "\n";
          */
-        std::cout<<"Utente gia' registrato"<<std::endl;
+        std::cout<<"Folder Utente presente nel sistema"<<std::endl;
         return false;
     }
     else
@@ -112,7 +116,8 @@ bool Database::registerUser(std::string &user,std::string &pass)
         std::cout << "Utente inserito nel database " << std::endl;
         delete prep_stmt;
 
-
+        boost::filesystem::current_path(path_server);
+        boost::filesystem::create_directories(path_user,ec);
         return true;
     }
 }
@@ -144,8 +149,9 @@ bool Database::searchUser(std::string &user,std::string &pass){
     }
 }
 
-bool Database::checkUser(std::vector<char> &vect_user) {
-    size_t pos = 0;
+bool Database::checkUser(MsgType msg, std::vector<char> &vect_user) {
+
+    size_t pos=0;
     std::string user;
     std::string delimiter = " ";
     std::string decrypt;
@@ -157,17 +163,33 @@ bool Database::checkUser(std::vector<char> &vect_user) {
     std::string pass = decrypt.substr(0, decrypt.length());
     //  }
     std::cout << "username: " << user << " password: " << pass << std::endl;
-    return Database::searchUser(user, pass);
+
+     switch(msg)
+     {
+         case MsgType::REGISTER:
+         {
+             return Database::registerUser(user,pass);
+         }
+         case MsgType::LOGIN:
+         {
+             return Database::searchUser(user, pass);
+         }
+         default:
+          return false;
+     }
 }
 
  std::string Database::decrypt(std::vector<char>& vect)
 {
-    unsigned char decrypted[vect.size()];
+    std::string decrypt_str;
+    unsigned int dim=vect.size()-crypto_secretbox_MACBYTES;
+    unsigned char decrypted[dim];
     if (crypto_secretbox_open_easy(decrypted, (const unsigned char *) vect.data(), vect.size(), nonce, key) != 0) {
         /* message forged! */
         std::cout<<"Errore decrypt." <<std::endl;
     }
-    return std::string(reinterpret_cast<const char *>(decrypted));
+    std::copy(&decrypted[0],&decrypted[dim],std::back_inserter(decrypt_str));
+    return decrypt_str;
 }
 
 void Database::setNonce(const char* data_nonce)

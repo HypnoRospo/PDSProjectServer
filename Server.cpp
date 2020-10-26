@@ -13,6 +13,7 @@
 #include "SocketWrap.h"
 #include "Database.h"
 #include "Message.h"
+#include <boost/filesystem.hpp>
 
 #define BUFFER_DIM 255
 #define DIM_FILENAME 255
@@ -22,13 +23,17 @@
 #define TERMINAZIONE "\r\n\0"
 #define OK "+OK\r\n"
 #define FINE "FINE\r\n\0"
-#define ERRORE "-ERR\r\n"
+#define ERRORE "-SERVER: ERRORE, file non trovato o errore generico\r\n"
 #define ERRORE_LOGIN "-SERVER: Impossibile procedere, necessaria autenticazione\r\n"
 #define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
 #define OK_NONCE "-SERVER: NONCE SETTED\r\n"
+#define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA CON SUCCESSO\r\n"
+#define ERRORE_REGISTER "-SERVER: Registrazione non avvenuta, utente presente nel sistema\r\n"
 
 ssize_t send_err(int sock);
 ssize_t send_err_login(int sock);
+ssize_t send_err_register(int sock);
+ssize_t send_register_ok(int sock);
 ssize_t send_login_ok(int sock);
 ssize_t send_nonce_ok(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
@@ -60,6 +65,7 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
+        boost::filesystem::create_directories("../server_user/");
     }
     else
     {
@@ -106,6 +112,13 @@ ssize_t send_err_login(int sock){
     return s;
 }
 
+ssize_t send_err_register(int sock){
+    ssize_t s;
+    s = ssend(sock, ERRORE_REGISTER, sizeof(ERRORE_REGISTER), MSG_NOSIGNAL);
+    return s;
+}
+
+
 ssize_t send_login_ok(int sock)
 {
     ssize_t  s;
@@ -117,6 +130,12 @@ ssize_t send_nonce_ok(int sock)
 {
     ssize_t  s;
     s = ssend(sock, OK_NONCE, sizeof(OK_NONCE), MSG_NOSIGNAL);
+    return s;
+}
+ssize_t send_register_ok(int sock)
+{
+    ssize_t  s;
+    s = ssend(sock, OK_REGISTER, sizeof(OK_REGISTER), MSG_NOSIGNAL);
     return s;
 }
 
@@ -174,6 +193,9 @@ MsgType leggi_header(int socket)
                 return MsgType::LOGIN;
             case 3:
                 return MsgType::LOGOUT;
+            case 4:
+                return MsgType::REGISTER;
+
 
             default:
                 break;
@@ -229,6 +251,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     free(filedata);
     return fsize;
 }
+
 
 void thread_work()
 {
@@ -313,14 +336,17 @@ void thread_work()
 
                          std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
 
-                        if(Database::checkUser(incoming_message.body))
+                        if(Database::checkUser(MsgType::LOGIN,incoming_message.body))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
                             logged=true;
                             send_login_ok(s_connesso);
                         }
                         else
+                        {
                             std::cout<<"Utente non riconosciuto"<<std::endl;
+                            send_err_login(s_connesso);
+                        }
                         break;
                     }
 
@@ -389,6 +415,35 @@ void thread_work()
                     std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
                     break;
 
+
+                case(MsgType::REGISTER):
+                    std::cout<<"Header register ricevuto"<<std::endl;
+                    read_result = leggi_comando(s_connesso, buffer, BUFFER_DIM);
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
+                    else
+                    {
+                        std::string body_cipher_r; // o vector<char> indifferente..tanto viene riallocato in incoming message
+                        std::copy(&buffer[0],&buffer[read_result],std::back_inserter(body_cipher_r));
+                        incoming_message << body_cipher_r; //possiamo passare direttamente body cipher, funziona anche i messaggi
+
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+
+                        if(Database::checkUser(MsgType::REGISTER,incoming_message.body))
+                        {
+                            std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
+                            send_register_ok(s_connesso);
+                        }
+                        else
+                        {
+                            std::cout<<"Utente gia' registrato"<<std::endl;
+                            send_err_register(s_connesso);
+                        }
+                        logged=true;
+                        break;
+                    }
                 default:
                     break;
             }
