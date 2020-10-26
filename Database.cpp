@@ -78,6 +78,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
     boost::filesystem::path directory("./server_users/"+user);
     if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
     {
+        //
         //boost::filesystem::directory_iterator begin(directory);
         //boost::filesystem::directory_iterator end;
         /* //stampa il contenuto
