@@ -15,8 +15,6 @@ private:
     static Database* databaseptr_;
     static std::mutex mutexdb_;
      static void connect();
-    static std::string decrypt(const std::vector<char>& vect);
-
 
 public:
     /**
@@ -33,9 +31,10 @@ public:
 
     static Database* create_instance();
     static bool searchUser(std::string &user,std::string &pass);
-    static bool checkUser(MsgType msg, std::vector<char> &vect_user);
+    static bool checkUser(MsgType msg, std::vector<unsigned char>& vect_user);
     static bool registerUser(std::string &user,std::string &pass);
-    static void setNonce(const char* data_nonce);
+    static void setNonce( unsigned char* data_nonce);
+    static std::string decrypt( std::vector<unsigned char>& encrypted);
 
 
 protected:

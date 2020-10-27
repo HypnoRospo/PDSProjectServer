@@ -51,7 +51,6 @@ public:
      * object stored in the static field.
      */
     static Server *start( int port);
-    void work();
     /**
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.

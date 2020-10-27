@@ -16,7 +16,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-
+#include <boost/asio.hpp>
 
 enum class MsgType : uint32_t
 {
@@ -72,10 +72,9 @@ namespace Message {
             static_assert(std::is_standard_layout<DataType>::value, "Data is too complex to be pushed into vector");
 
             // Resize the vector by the size of the data being pushed
-            msg.body.resize(data.size());
+            msg.body.clear();
 
-            // Physically copy the data into the newly allocated vector space
-            std::copy(data.begin(), data.end(), msg.body.begin());
+            msg.body.assign(data.begin(),data.end());
 
             // Recalculate the message size
             msg.header.size = msg.size();
@@ -100,9 +99,21 @@ namespace Message {
             return msg;
         }
 
+        boost::system::error_code sendMessage(boost::asio::ip::tcp::socket& socket)
+        {
+            boost::system::error_code errorCode;
+            boost::asio::write(socket, boost::asio::buffer(&(this->header.size), sizeof(this->header.size)), errorCode);
+            if(!errorCode.failed())
+                boost::asio::write(socket, boost::asio::buffer(&(this->header.id), sizeof(this->header.id)), errorCode);
+            if(!errorCode.failed())
+                boost::asio::write(socket, boost::asio::buffer(this->body.data(), this->body.size()), errorCode);
+            return errorCode;
+        }
+
         void set_id(MsgType type) {
             this->header.id=type;
         }
+
     };
 
 };

@@ -149,12 +149,13 @@ bool Database::searchUser(std::string &user,std::string &pass){
     }
 }
 
-bool Database::checkUser(MsgType msg, std::vector<char> &vect_user) {
+bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
 
     size_t pos=0;
     std::string user;
     std::string delimiter = " ";
     std::string decrypt;
+    std::string encrypted(vect_user.begin(),vect_user.end());
     decrypt=Database::decrypt(vect_user);
     //  while ((pos = str.find(delimiter)) != std::string::npos) {
     pos = decrypt.find(delimiter);
@@ -179,20 +180,24 @@ bool Database::checkUser(MsgType msg, std::vector<char> &vect_user) {
      }
 }
 
- std::string Database::decrypt(const std::vector<char>& vect)
+ std::string Database::decrypt(std::vector<unsigned char>& encrypted)
 {
-    unsigned int dim=vect.size()-crypto_secretbox_MACBYTES;
-    unsigned char decrypted[dim];
-    if (crypto_secretbox_open_easy(decrypted, (const unsigned char *) vect.data(), vect.size(), nonce, key) != 0) {
+     size_t dim = encrypted.size()-crypto_secretbox_MACBYTES;
+     unsigned char decrypted[dim];
+    if (crypto_secretbox_open_easy(decrypted, reinterpret_cast<const unsigned char *>(encrypted.data()), encrypted.size(), nonce, key) != 0) {
         /* message forged! */
-        std::cout<<"Errore decrypt." <<std::endl;
+        std::cout<<"Errore decrypt. INSIDE DECRYPT FUNCTION, dim = " << dim<< std::endl;
+        return "fallimento";
     }
-    std::string result(reinterpret_cast<const char *>(decrypted),dim);
-    return result;
+    else
+    {
+        std::string result(reinterpret_cast<const char *>(decrypted),dim);
+        return result;
+    }
 }
 
-void Database::setNonce(const char* data_nonce)
+void Database::setNonce( unsigned char* data_nonce)
 {
-     for(int i =0; i<crypto_secretbox_NONCEBYTES ; i++)
+     for(int i =0; i<crypto_secretbox_NONCEBYTES; i++)
          nonce[i]=data_nonce[i];
 }
