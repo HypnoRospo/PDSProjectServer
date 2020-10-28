@@ -76,50 +76,71 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
 bool Database::registerUser(std::string &user,std::string &pass)
 {
 
-    boost::system::error_code ec;
-    std::string path_server("../server_user/");
-    std::string path_user(path_server+user);
-    boost::filesystem::path directory(path_user);
-    if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
-    {
-        //
-        //boost::filesystem::directory_iterator begin(directory);
-        //boost::filesystem::directory_iterator end;
-        /* //stampa il contenuto
-        while(begin != end)
-        {
-            std::cout << *begin << " "; //controllo checksum or hash
-            ++begin;
+    try {
+        prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
+        prep_stmt->setString( 1,user);
+        res =  prep_stmt->executeQuery();
+        // The prep_stmt above must return only 1 tuple because user is unique and then N<=1 and password check that N>0 => N = 1
+        //Verifico che esiste una tupla ( che è unica ) e restituisco true.
+        if(res->next()) {
+
+            //mandare messaggio di errore dato che il nickname e' gia' stato utilizzato -> con return false basta
+            return false;
         }
-        std::cout << "\n";
-         */
-        std::cout<<"Folder Utente presente nel sistema"<<std::endl;
+        else
+        {
+
+            /* '?' is the supported placeholder syntax */
+            prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
+
+            char hashed_password[crypto_pwhash_STRBYTES];
+
+            if (crypto_pwhash_str
+                        (hashed_password, pass.c_str(), pass.length(),
+                         crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
+                /* out of memory */
+            }
+
+
+            prep_stmt->setString(1, user);
+            prep_stmt->setString(2, hashed_password);
+            prep_stmt->execute();
+            std::cout << "Utente inserito nel database " << std::endl;
+            delete prep_stmt;
+
+            boost::system::error_code ec;
+            std::string path_server("../server_user/");
+            std::string path_user(path_server+user);
+            /*
+            boost::filesystem::path directory(path_user);
+            if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
+            {
+                //
+                //boost::filesystem::directory_iterator begin(directory);
+                //boost::filesystem::directory_iterator end;
+                /* //stampa il contenuto
+                while(begin != end)
+                {
+                    std::cout << *begin << " "; //controllo checksum or hash
+                    ++begin;
+                }
+                std::cout << "\n";
+
+                std::cout<<"Folder Utente presente nel sistema, utente gia' registrato"<<std::endl;
+                //return true;
+            }
+             */
+            //boost::filesystem::current_path(path_server);
+            boost::filesystem::create_directories(path_user,ec);
+            return true;
+        }
+        }
+    catch (sql::SQLException &e) {
+        std::cout << " (MySQL error code: " << e.getErrorCode();
+        std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
         return false;
     }
-    else
-    {
-        /* '?' is the supported placeholder syntax */
-        prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
 
-        char hashed_password[crypto_pwhash_STRBYTES];
-
-        if (crypto_pwhash_str
-                    (hashed_password, pass.c_str(), pass.length(),
-                     crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
-            /* out of memory */
-        }
-
-
-        prep_stmt->setString(1, user);
-        prep_stmt->setString(2, hashed_password);
-        prep_stmt->execute();
-        std::cout << "Utente inserito nel database " << std::endl;
-        delete prep_stmt;
-
-        boost::filesystem::current_path(path_server);
-        boost::filesystem::create_directories(path_user,ec);
-        return true;
-    }
 }
 
 bool Database::searchUser(std::string &user,std::string &pass){

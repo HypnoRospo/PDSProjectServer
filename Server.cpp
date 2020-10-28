@@ -436,14 +436,16 @@ void thread_work()
                         {
                             std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
                             send_register_ok(s_connesso);
+                            logged=true;
                         }
                         else
                         {
                             std::cout<<"Utente gia' registrato"<<std::endl;
                             send_err_register(s_connesso);
+                            logged=false;
                         }
                         buffer.clear();
-                        logged=true;
+
                         break;
                     }
                 default:
