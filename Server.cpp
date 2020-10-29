@@ -17,7 +17,7 @@
 #include <boost/asio.hpp>
 
 #define DIM_FILENAME 255
-#define TIMEOUT_SECONDI 15
+#define TIMEOUT_SECONDI 100000
 #define TIMEOUT_MICROSECONDI 0
 #define GET "GET "
 #define TERMINAZIONE "\r\n\0"
@@ -28,7 +28,7 @@
 #define OK_NONCE "-SERVER: NONCE SETTED\r\n"
 #define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA CON SUCCESSO\r\n"
 #define ERRORE_REGISTER "-SERVER: Registrazione non avvenuta, utente presente nel sistema\r\n"
-
+#define CRC_HEADER "-CRC "
 ssize_t send_err(int sock);
 ssize_t send_err_login(int sock);
 ssize_t send_err_register(int sock);
@@ -285,7 +285,6 @@ void thread_work()
     int s_connesso;
     unsigned long my_socket_index;
     bool logged=false;
-
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
@@ -337,7 +336,6 @@ void thread_work()
                         incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         Database::setNonce(buffer.data());
-                        buffer.clear();
                         send_nonce_ok(s_connesso);
                     }
                     break;
@@ -357,15 +355,16 @@ void thread_work()
                         if(Database::checkUser(MsgType::LOGIN,buffer))
                         {
                             std::cout<<"Utente loggato correttamente"<<std::endl;
-                            logged=true;
                             send_login_ok(s_connesso);
+                            logged=true;
                         }
-                        else
-                        {
-                            std::cout<<"Utente non riconosciuto"<<std::endl;
+                        else {
+                            std::cout << "Utente non riconosciuto" << std::endl;
                             send_err_login(s_connesso);
+                            MsgType id = MsgType::TRY_AGAIN_LOGIN;
+                            ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                            logged=true;
                         }
-                        buffer.clear();
                         break;
                     }
 
@@ -404,7 +403,6 @@ void thread_work()
                         send_result = send_file(s_connesso, filesize, filelastmod,
                                                 fileptr);
                         if (send_result < 0) {
-
                             send_err(s_connesso);
                             break;
                         }
@@ -442,9 +440,10 @@ void thread_work()
                         {
                             std::cout<<"Utente gia' registrato"<<std::endl;
                             send_err_register(s_connesso);
-                            logged=false;
+                            MsgType id = MsgType::TRY_AGAIN_REGISTER;
+                            ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                            logged=true;
                         }
-                        buffer.clear();
 
                         break;
                     }

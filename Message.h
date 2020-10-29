@@ -20,7 +20,7 @@
 
 enum class MsgType : uint32_t
 {
-    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,ERROR, BLANK
+    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,ERROR, BLANK, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN
 };
 
 namespace Message {
@@ -102,12 +102,20 @@ namespace Message {
         boost::system::error_code sendMessage(boost::asio::ip::tcp::socket& socket)
         {
             boost::system::error_code errorCode;
-            boost::asio::write(socket, boost::asio::buffer(&(this->header.size), sizeof(this->header.size)), errorCode);
-            if(!errorCode.failed())
+
+            if(this->header.id != MsgType::TRY_AGAIN_REGISTER && this->header.id != MsgType::TRY_AGAIN_LOGIN)
+            {
+                boost::asio::write(socket, boost::asio::buffer(&(this->header.size), sizeof(this->header.size)), errorCode);
+                if(!errorCode.failed())
+                    boost::asio::write(socket, boost::asio::buffer(&(this->header.id), sizeof(this->header.id)), errorCode);
+                if(!errorCode.failed())
+                    boost::asio::write(socket, boost::asio::buffer(this->body.data(), this->body.size()), errorCode);
+            }
+            else
                 boost::asio::write(socket, boost::asio::buffer(&(this->header.id), sizeof(this->header.id)), errorCode);
-            if(!errorCode.failed())
-                boost::asio::write(socket, boost::asio::buffer(this->body.data(), this->body.size()), errorCode);
+
             return errorCode;
+
         }
 
         void set_id(MsgType type) {
