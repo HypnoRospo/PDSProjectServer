@@ -19,22 +19,26 @@
 #define DIM_FILENAME 255
 #define TIMEOUT_SECONDI 100000
 #define TIMEOUT_MICROSECONDI 0
-#define GET "GET "
-#define TERMINAZIONE "\r\n\0"
 #define OK "+OK\r\n"
 #define ERRORE "-SERVER: ERRORE, file non trovato o errore generico\r\n"
-#define ERRORE_LOGIN "-SERVER: Impossibile procedere, necessaria autenticazione\r\n"
+#define ERRORE_LOGIN "-SERVER: LOGIN FALLITO\r\n"
+#define ERRORE_LOGOUT "-SERVER: LOGOUT FALLITO\r\n"
 #define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
-#define OK_NONCE "-SERVER: NONCE SETTED\r\n"
-#define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA CON SUCCESSO\r\n"
-#define ERRORE_REGISTER "-SERVER: Registrazione non avvenuta, utente presente nel sistema\r\n"
-#define CRC_HEADER "-CRC "
+#define OK_LOGOUT "-SERVER: CLIENT LOGOUT\r\n"
+#define OK_NONCE "-SERVER: HEADER_NONCE SETTED\r\n"
+#define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA\r\n"
+#define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
+#define OK_FILE "\n-SERVER: FILE MANDATO CON SUCCESSO\r\n"
+#define CRC_HEADER "-SERVER: CRC "
 ssize_t send_err(int sock);
 ssize_t send_err_login(int sock);
 ssize_t send_err_register(int sock);
+ssize_t send_err_logout(int sock);
 ssize_t send_register_ok(int sock);
 ssize_t send_login_ok(int sock);
+ssize_t send_logout_ok(int sock);
 ssize_t send_nonce_ok(int sock);
+ssize_t send_file_ok(int sock);
 ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
@@ -100,6 +104,7 @@ ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
   return Send(socket,bufptr,nbytes,flags);
 }
 
+
 ssize_t send_err(int sock){
     ssize_t s;
     s = ssend(sock, ERRORE, sizeof(ERRORE), MSG_NOSIGNAL);
@@ -110,6 +115,19 @@ ssize_t send_err(int sock){
 ssize_t send_err_login(int sock){
     ssize_t s;
     s = ssend(sock, ERRORE_LOGIN, sizeof(ERRORE_LOGIN), MSG_NOSIGNAL);
+    return s;
+}
+
+ssize_t send_logout_ok(int sock){
+    ssize_t s;
+    s = ssend(sock,OK_LOGOUT,sizeof(OK_LOGOUT),MSG_NOSIGNAL);
+    return s;
+}
+
+ssize_t send_err_logout(int sock)
+{
+    ssize_t s;
+    s = ssend(sock,ERRORE_LOGOUT,sizeof(ERRORE_LOGOUT),MSG_NOSIGNAL);
     return s;
 }
 
@@ -137,6 +155,12 @@ ssize_t send_register_ok(int sock)
 {
     ssize_t  s;
     s = ssend(sock, OK_REGISTER, sizeof(OK_REGISTER), MSG_NOSIGNAL);
+    return s;
+}
+ssize_t send_file_ok(int sock)
+{
+    ssize_t  s;
+    s = ssend(sock, OK_FILE, sizeof(OK_FILE), MSG_NOSIGNAL);
     return s;
 }
 
@@ -285,6 +309,7 @@ void thread_work()
     int s_connesso;
     unsigned long my_socket_index;
     bool logged=false;
+    bool replay=false;
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
@@ -324,6 +349,8 @@ void thread_work()
             switch(incoming_message.header.id)
             {
                 case (MsgType::NONCE):
+                {
+                    if(incoming_message.size()==0) break;
                     std::cout<<"Header di nonce ricevuto"<<std::endl;
                     read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
                     std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
@@ -339,34 +366,49 @@ void thread_work()
                         send_nonce_ok(s_connesso);
                     }
                     break;
+                }
+
                  case (MsgType::LOGIN):
+                 {
                      std::cout<<"Header di login ricevuto"<<std::endl;
-                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
-                    if (read_result == -1) {
-                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
-                        break;
-                    }
-                    else
-                    {
+                     read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
+                     if (read_result == -1) {
+                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                         break;
+                     }
+                     else
+                     {
                          incoming_message << buffer;
 
                          std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
-                        std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
-                        if(Database::checkUser(MsgType::LOGIN,buffer))
-                        {
-                            std::cout<<"Utente loggato correttamente"<<std::endl;
-                            send_login_ok(s_connesso);
-                            logged=true;
-                        }
-                        else {
-                            std::cout << "Utente non riconosciuto" << std::endl;
-                            send_err_login(s_connesso);
-                            MsgType id = MsgType::TRY_AGAIN_LOGIN;
-                            ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                            logged=true;
-                        }
-                        break;
-                    }
+                         std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
+
+                         if(logged)
+                         {
+                             std::cout<<"Utente gia' loggato"<<std::endl;
+                             send_login_ok(s_connesso);
+                         }
+                         else
+                         {
+                             if(Database::checkUser(MsgType::LOGIN,buffer))
+                             {
+                                 std::cout<<"Utente loggato correttamente"<<std::endl;
+                                 send_login_ok(s_connesso);
+                                 logged=true;
+                             }
+                             else {
+                                 std::cout << "Utente non riconosciuto" << std::endl;
+                                 send_err_login(s_connesso);
+                                 MsgType id = MsgType::TRY_AGAIN_LOGIN;
+                                 ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                                 replay=true;
+                             }
+                         }
+
+                         break;
+                     }
+                 }
+
 
                 case(MsgType::GETPATH):
                 {
@@ -374,6 +416,9 @@ void thread_work()
                     {
                         std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
                         send_err_login(s_connesso);
+                        MsgType id = MsgType::TRY_AGAIN_LOGIN;
+                        ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                        replay=true;
                         break;
                     }
 
@@ -394,6 +439,7 @@ void thread_work()
                             std::cout << "Impossibile aprire il file: " << filename << std::endl;
                             /* send error message to client and close the connection */
                             send_err(s_connesso);
+                            replay=true;
                             break;
                         }
                         filesize = filestat.st_size;
@@ -404,20 +450,36 @@ void thread_work()
                                                 fileptr);
                         if (send_result < 0) {
                             send_err(s_connesso);
+                            replay=true;
                             break;
                         }
                         std::cout << "File mandato con successo." << std::endl;
+                        send_file_ok(s_connesso);
                         fclose(fileptr);
                         continue;
                 }
 
                 case (MsgType::LOGOUT):
-                    logged=false;
-                    std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
-                    break;
+                {
+                    if(logged)
+                    {
+                        logged=false;
+                        std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
+                        send_logout_ok(s_connesso);
+                        replay=true;
+                        break;
+                    }
+                    else
+                    {
+                        replay=true;
+                        send_err_logout(s_connesso);
+                        break;
+                    }
+                }
 
 
                 case(MsgType::REGISTER):
+                {
                     std::cout<<"Header register ricevuto"<<std::endl;
                     read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
                     if (read_result == -1) {
@@ -442,15 +504,17 @@ void thread_work()
                             send_err_register(s_connesso);
                             MsgType id = MsgType::TRY_AGAIN_REGISTER;
                             ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                            logged=true;
+                            replay=true;
                         }
 
                         break;
                     }
+                }
+
                 default:
                     break;
             }
-            if(!logged && incoming_message.header.id!=MsgType::NONCE)
+            if(!logged && !replay && incoming_message.header.id!=MsgType::NONCE)
                 break;
         }
             /* select() ritorna 0, timeout */
