@@ -14,10 +14,10 @@
 #include "Database.h"
 #include "Message.h"
 #include <boost/filesystem.hpp>
-#include <boost/asio.hpp>
+
 
 #define DIM_FILENAME 255
-#define TIMEOUT_SECONDI 100000
+#define TIMEOUT_SECONDI 400
 #define TIMEOUT_MICROSECONDI 0
 #define OK "+OK\r\n"
 #define ERRORE "-SERVER: ERRORE, file non trovato o errore generico\r\n"
@@ -218,7 +218,11 @@ Message::message_header<MsgType> leggi_header(int socket)
         else counter++;
 
         if(counter==1)
-            msg.size=comm;
+        {
+            if(comm<129)
+                msg.size=comm;
+            else msg.size=0;
+        }
         else
         {
             /* salva il byte letto nel buffer */
@@ -350,7 +354,6 @@ void thread_work()
             {
                 case (MsgType::NONCE):
                 {
-                    if(incoming_message.size()==0) break;
                     std::cout<<"Header di nonce ricevuto"<<std::endl;
                     read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
                     std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
