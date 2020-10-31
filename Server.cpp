@@ -16,33 +16,26 @@
 
 
 #define DIM_FILENAME 255
-#define TIMEOUT_SECONDI 400
+#define TIMEOUT_SECONDI 360
 #define TIMEOUT_MICROSECONDI 0
 #define OK "+OK\r\n"
-#define ERRORE "-SERVER: ERRORE, file non trovato o errore generico\r\n"
+#define ERRORE "-SERVER: ERRORE GENERICO\r\n"
 #define ERRORE_LOGIN "-SERVER: LOGIN FALLITO\r\n"
 #define ERRORE_LOGOUT "-SERVER: LOGOUT FALLITO\r\n"
+#define ERRORE_RICHIESTA_FILE "-SERVER: FILE CERCATO NON TROVATO\r\n"
 #define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
 #define OK_LOGOUT "-SERVER: CLIENT LOGOUT\r\n"
 #define OK_NONCE "-SERVER: NONCE SETTED\r\n"
 #define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA\r\n"
 #define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
+#define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 #define CRC_HEADER "-SERVER: CRC "
-ssize_t send_err(int sock);
-ssize_t send_err_login(int sock);
-ssize_t send_err_register(int sock);
-ssize_t send_err_logout(int sock);
-ssize_t send_register_ok(int sock);
-ssize_t send_login_ok(int sock);
-ssize_t send_logout_ok(int sock);
-ssize_t send_nonce_ok(int sock);
-ssize_t send_file_ok(int sock);
-ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags);
+
+ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
 Message::message_header<MsgType> leggi_header(int socket);
-void work();
 void thread_work();
 void create_threads();
 
@@ -68,14 +61,22 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
-        boost::filesystem::create_directories("../server_user/");
-        work();
+        pinstance_->setServerPath("../server_user/");
+        boost::filesystem::create_directories(pinstance_->getServerPath());
     }
     else
     {
         std::cout << "Creazione del server gia' avvenuta, server creato in precedenza con porta: " << pinstance_->getPort()<< std::endl;
     }
     return pinstance_;
+}
+
+const std::string &Server::getServerPath() const {
+    return server_path;
+}
+
+void Server::setServerPath(const std::string &serverPath) {
+    server_path = serverPath;
 }
 
 void create_threads()
@@ -91,75 +92,25 @@ void create_threads()
 }
 
 
-void work() {
-    std::cout << "Server Program" << std::endl;
-    std::cout << std::endl;
-    Database::create_instance();
-    std::cout << "In attesa di connessioni..." << std::endl;
-    create_threads();
+void Server::work() {
+    if(pinstance_)
+    {
+        std::cout << "Server Program" << std::endl;
+        std::cout << std::endl;
+        Database::create_instance();
+        std::cout << "In attesa di connessioni..." << std::endl;
+        create_threads();
+    }
+    else std::cout<<"Errore, non si e' inizializzato un server in una determinata porta.."
+                    "(start() method)"<<std::endl;
+
 }
 
-ssize_t ssend(int socket, const void *bufptr, size_t nbytes, int flags){
-  return Send(socket,bufptr,nbytes,flags);
-}
 
-
-ssize_t send_err(int sock){
-    ssize_t s;
-    s = ssend(sock, ERRORE, sizeof(ERRORE), MSG_NOSIGNAL);
-    std::cout<<"Errore connessione"<<std::endl;
-    return s;
-}
-
-ssize_t send_err_login(int sock){
-    ssize_t s;
-    s = ssend(sock, ERRORE_LOGIN, sizeof(ERRORE_LOGIN), MSG_NOSIGNAL);
-    return s;
-}
-
-ssize_t send_logout_ok(int sock){
-    ssize_t s;
-    s = ssend(sock,OK_LOGOUT,sizeof(OK_LOGOUT),MSG_NOSIGNAL);
-    return s;
-}
-
-ssize_t send_err_logout(int sock)
+ssize_t send_msg_client(int sock,std::string& msg_client)
 {
     ssize_t s;
-    s = ssend(sock,ERRORE_LOGOUT,sizeof(ERRORE_LOGOUT),MSG_NOSIGNAL);
-    return s;
-}
-
-ssize_t send_err_register(int sock){
-    ssize_t s;
-    s = ssend(sock, ERRORE_REGISTER, sizeof(ERRORE_REGISTER), MSG_NOSIGNAL);
-    return s;
-}
-
-
-ssize_t send_login_ok(int sock)
-{
-    ssize_t  s;
-    s = ssend(sock, OK_LOGIN, sizeof(OK_LOGIN), MSG_NOSIGNAL);
-    return s;
-}
-
-ssize_t send_nonce_ok(int sock)
-{
-    ssize_t  s;
-    s = ssend(sock, OK_NONCE, sizeof(OK_NONCE), MSG_NOSIGNAL);
-    return s;
-}
-ssize_t send_register_ok(int sock)
-{
-    ssize_t  s;
-    s = ssend(sock, OK_REGISTER, sizeof(OK_REGISTER), MSG_NOSIGNAL);
-    return s;
-}
-ssize_t send_file_ok(int sock)
-{
-    ssize_t  s;
-    s = ssend(sock, OK_FILE, sizeof(OK_FILE), MSG_NOSIGNAL);
+    s = Send(sock, msg_client.c_str(), msg_client.length(), MSG_NOSIGNAL);
     return s;
 }
 
@@ -183,7 +134,11 @@ ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size
                 if(INTERRUPTED_BY_SIGNAL)
                     continue;
                 else
-                    return -1;
+                {
+                    read=-1;
+                    return read;
+                }
+
             }
             else break;
         }while(true);
@@ -211,7 +166,8 @@ Message::message_header<MsgType> leggi_header(int socket)
                     continue;
                 else
                 {
-                    msg.size=0;
+                    read=0;
+                    msg.size=read;
                     msg.id=MsgType::ERROR;
                     return msg;
                 }
@@ -282,7 +238,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     filedata = (char*)malloc(fsize);
 
     /* OK command */
-    if((send = ssend(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
+    if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
        strlen(OK)){
         free(filedata);
         return send;
@@ -290,7 +246,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
 
     /*  dimensione file  */
     file_dim = htonl(fsize);
-    if((send = ssend(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
+    if((send = Send(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
        sizeof(file_dim)){
         free(filedata);
         return send;
@@ -305,7 +261,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
         }
         filedata[i] = c;
     }
-    send = ssend(socket, filedata, fsize, MSG_NOSIGNAL);
+    send = Send(socket, filedata, fsize, MSG_NOSIGNAL);
     if(send != fsize){
         free(filedata);
         return send;
@@ -313,7 +269,7 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
 
     /* timestamp */
     file_time = htonl(tstamp);
-    if((send = ssend(socket, &file_time, sizeof(file_time), MSG_NOSIGNAL)) !=
+    if((send = Send(socket, &file_time, sizeof(file_time), MSG_NOSIGNAL)) !=
        sizeof(file_time)){
         free(filedata);
         return send;
@@ -355,6 +311,7 @@ void thread_work()
     while (true) {
         Message::message<MsgType> incoming_message;
         std::vector<unsigned char> buffer;
+        std::string client_msg;
         fd_set read_set;
         FD_ZERO(&read_set);
         FD_SET(s_connesso, &read_set);
@@ -387,9 +344,45 @@ void thread_work()
                         incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         Database::setNonce(buffer.data());
-                        send_nonce_ok(s_connesso);
+                        client_msg=OK_NONCE;
+                        send_msg_client(s_connesso,client_msg);
                     }
                     break;
+                }
+
+                case(MsgType::REGISTER):
+                {
+                    std::cout<<"Header register ricevuto"<<std::endl;
+                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
+                    else
+                    {
+                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
+
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+                        std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
+                        if(Database::checkUser(MsgType::REGISTER,buffer))
+                        {
+                            std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
+                            client_msg=OK_REGISTER;
+                            send_msg_client(s_connesso,client_msg);
+                            logged=true;
+                        }
+                        else
+                        {
+                            std::cout<<"Utente gia' registrato,mandato TRY AGAIN"<<std::endl;
+                            client_msg=ERRORE_REGISTER;
+                            send_msg_client(s_connesso,client_msg);
+                            MsgType id = MsgType::TRY_AGAIN_REGISTER;
+                            Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                            continue;
+                        }
+
+                        break;
+                    }
                 }
 
                  case (MsgType::LOGIN):
@@ -410,21 +403,23 @@ void thread_work()
                          if(logged)
                          {
                              std::cout<<"Utente gia' loggato"<<std::endl;
-                             send_login_ok(s_connesso);
+                             client_msg=OK_LOGIN;
+                             send_msg_client(s_connesso,client_msg);
                          }
                          else
                          {
                              if(Database::checkUser(MsgType::LOGIN,buffer))
                              {
                                  std::cout<<"Utente loggato correttamente"<<std::endl;
-                                 send_login_ok(s_connesso);
-                                 logged=true;
+                                 client_msg=OK_LOGIN;
+                                 send_msg_client(s_connesso,client_msg);
                              }
                              else {
                                  std::cout << "Utente non riconosciuto" << std::endl;
-                                 send_err_login(s_connesso);
+                                 client_msg=ERRORE_LOGIN;
+                                 send_msg_client(s_connesso,client_msg);
                                  MsgType id = MsgType::TRY_AGAIN_LOGIN;
-                                 ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                                 Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
                                  continue;
                              }
                          }
@@ -440,9 +435,10 @@ void thread_work()
                     if(!logged)
                     {
                         std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
-                        send_err_login(s_connesso);
+                        client_msg=ERRORE_LOGIN;
+                        send_msg_client(s_connesso,client_msg);
                         MsgType id = MsgType::TRY_AGAIN_LOGIN;
-                        ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                        Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
                         continue;
                     }
                     std::string buffer_str(buffer.begin(),buffer.end());
@@ -460,7 +456,8 @@ void thread_work()
                             stat(incoming_message.body.data(), &filestat) != 0) {
                             std::cout << "Impossibile aprire il file: " << filename << std::endl;
                             /* send error message to client and close the connection */
-                            send_err(s_connesso);
+                            client_msg=ERRORE_RICHIESTA_FILE;
+                            send_msg_client(s_connesso,client_msg);
                             continue;
                         }
                         filesize = filestat.st_size;
@@ -470,11 +467,13 @@ void thread_work()
                         send_result = send_file(s_connesso, filesize, filelastmod,
                                                 fileptr);
                         if (send_result < 0) {
-                            send_err(s_connesso);
+                            client_msg=ERRORE_RICHIESTA_FILE;
+                            send_msg_client(s_connesso,client_msg);
                             continue;
                         }
                         std::cout << "File mandato con successo." << std::endl;
-                        send_file_ok(s_connesso);
+                         client_msg=OK_FILE;
+                        send_msg_client(s_connesso,client_msg);
                         fclose(fileptr);
                         continue;
                 }
@@ -485,47 +484,15 @@ void thread_work()
                     {
                         logged=false;
                         std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
-                        send_logout_ok(s_connesso);
+                        client_msg=OK_LOGOUT;
+                        send_msg_client(s_connesso,client_msg);
                         continue;
                     }
                     else
                     {
-                        send_err_logout(s_connesso);
+                        client_msg=ERRORE_LOGOUT;
+                        send_msg_client(s_connesso,client_msg);
                         continue;
-                    }
-                }
-
-
-                case(MsgType::REGISTER):
-                {
-                    std::cout<<"Header register ricevuto"<<std::endl;
-                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
-                    if (read_result == -1) {
-                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
-                        break;
-                    }
-                    else
-                    {
-                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
-
-                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
-                        std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
-                        if(Database::checkUser(MsgType::REGISTER,buffer))
-                        {
-                            std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
-                            send_register_ok(s_connesso);
-                            logged=true;
-                        }
-                        else
-                        {
-                            std::cout<<"Utente gia' registrato,mandato TRY AGAIN"<<std::endl;
-                            send_err_register(s_connesso);
-                            MsgType id = MsgType::TRY_AGAIN_REGISTER;
-                            ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                            continue;
-                        }
-
-                        break;
                     }
                 }
                 case(MsgType::ERROR):
@@ -545,13 +512,16 @@ void thread_work()
             /* select() ritorna 0, timeout */
         else if (s == 0) {
             std::cout << "Nessuna risposta dopo " << TIMEOUT_SECONDI << " secondi, chiusura." << std::endl;
-            send_err(s_connesso);
-            break;
+            client_msg=TIMEOUT_ERR;
+            send_msg_client(s_connesso,client_msg);
+            logged=false;
+            continue;
 
         } /* fallimento select() */
         else {
             std::cout << "Errore nella select()" << std::endl;
-            send_err(s_connesso);
+            client_msg=ERRORE;
+            send_msg_client(s_connesso,client_msg);
             break;
         }
     }

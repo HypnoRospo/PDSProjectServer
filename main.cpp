@@ -1,7 +1,7 @@
-#include <iostream>
 #include "Server.h"
 #include <memory>
 int main() {
-    Server::start(5000);
+    std::unique_ptr<Server> server (Server::start(5000));
+    server->work();
     return 0;
 }

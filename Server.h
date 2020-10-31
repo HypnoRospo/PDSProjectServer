@@ -27,11 +27,11 @@ class Server
 private:
     static Server * pinstance_;
     static std::mutex mutex_;
-    std::string server_path;
 
 protected:
     explicit Server(int  port): port_(port) {}
     int port_;
+    std::string server_path;
 
 public:
     /**
@@ -39,6 +39,10 @@ public:
      */
     Server(Server &other) = delete;
     ~Server() = default;
+
+    [[nodiscard]] const std::string &getServerPath() const;
+    void setServerPath(const std::string &serverPath);
+
 
     /**
      * Singletons should not be assignable.
@@ -51,6 +55,7 @@ public:
      * object stored in the static field.
      */
     static Server *start( int port);
+    static void work();
     /**
      * Finally, any singleton should define some business logic, which can be
      * executed on its instance.
@@ -60,7 +65,7 @@ public:
      //...
 
 
-    int getPort() const{
+    [[nodiscard]] int getPort() const{
         return port_;
     }
 };
