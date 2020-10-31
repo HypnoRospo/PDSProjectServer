@@ -486,7 +486,7 @@ void thread_work()
                         logged=false;
                         std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
                         send_logout_ok(s_connesso);
-                        break;
+                        continue;
                     }
                     else
                     {
