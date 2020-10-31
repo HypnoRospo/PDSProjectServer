@@ -20,7 +20,7 @@
 
 enum class MsgType : uint32_t
 {
-    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,ERROR, BLANK, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN
+    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,CRC,ERROR, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN
 };
 
 namespace Message {
@@ -93,7 +93,7 @@ namespace Message {
             // Physically copy the data from the vector into the user variable
             std::copy(msg.body.begin(), msg.body.end(), std::back_inserter(data));
 
-            msg.header.id=MsgType::BLANK;
+            msg.header.id=MsgType::ERROR;
             msg.header.size=0;
             msg.body.clear();
             return msg;

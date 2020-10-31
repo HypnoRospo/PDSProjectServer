@@ -6,9 +6,8 @@
 #include <string>
 #include <mutex>
 #include <thread>
-//#include <openssl/sha.h>
+#include <sodium/crypto_pwhash.h>
 #include <boost/asio/ts/buffer.hpp>
-//#include <boost/asio/ts/internet.hpp>
 #include "Socket.h"
 #include "SocketWrap.h"
 #include "Database.h"
@@ -25,10 +24,10 @@
 #define ERRORE_LOGOUT "-SERVER: LOGOUT FALLITO\r\n"
 #define OK_LOGIN "-SERVER: CLIENT LOGGED\r\n"
 #define OK_LOGOUT "-SERVER: CLIENT LOGOUT\r\n"
-#define OK_NONCE "-SERVER: HEADER_NONCE SETTED\r\n"
+#define OK_NONCE "-SERVER: NONCE SETTED\r\n"
 #define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA\r\n"
 #define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
-#define OK_FILE "\n-SERVER: FILE MANDATO CON SUCCESSO\r\n"
+#define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define CRC_HEADER "-SERVER: CRC "
 ssize_t send_err(int sock);
 ssize_t send_err_login(int sock);
@@ -206,22 +205,32 @@ Message::message_header<MsgType> leggi_header(int socket)
     /* legge un carattere e controlla i possibili errori */
     while(counter<2)
     {
-        if(read = recv(socket, &comm, sizeof(uint32_t), 0) < 0){
-            if(INTERRUPTED_BY_SIGNAL)
-                continue;
-            else
-            {
-                msg.size=0;
-                msg.id=MsgType::BLANK;
+        do{
+            if(read = recv(socket, &comm, sizeof(comm), 0) < 0){
+                if(INTERRUPTED_BY_SIGNAL)
+                    continue;
+                else
+                {
+                    msg.size=0;
+                    msg.id=MsgType::ERROR;
+                    return msg;
+                }
+
             }
-        }
-        else counter++;
+            else break;
+        }while(true);
+
+         counter++;
 
         if(counter==1)
         {
-            if(comm<129)
+            if(comm < crypto_pwhash_STRBYTES)  //controllo dimensione & sicurezza //todo
                 msg.size=comm;
-            else msg.size=0;
+            else{
+                msg.size=0; //null
+                msg.id=MsgType::ERROR;
+                return msg;
+            }
         }
         else
         {
@@ -243,8 +252,21 @@ Message::message_header<MsgType> leggi_header(int socket)
                 case 4:
                     msg.id=MsgType::REGISTER;
                     break;
+                case 5:
+                    msg.id=MsgType::CRC;
+                    break;
+                case 6:
+                    msg.id=MsgType::ERROR;
+                    break;
+                case 7:
+                    msg.id=MsgType::TRY_AGAIN_REGISTER;
+                    break;
+                case 8:
+                    msg.id=MsgType::TRY_AGAIN_LOGIN;
+                    break;
 
                 default:
+                    msg.id=MsgType::ERROR;
                     break;
             }
         }
@@ -313,7 +335,6 @@ void thread_work()
     int s_connesso;
     unsigned long my_socket_index;
     bool logged=false;
-    bool replay=false;
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
@@ -404,7 +425,7 @@ void thread_work()
                                  send_err_login(s_connesso);
                                  MsgType id = MsgType::TRY_AGAIN_LOGIN;
                                  ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                                 replay=true;
+                                 continue;
                              }
                          }
 
@@ -415,21 +436,19 @@ void thread_work()
 
                 case(MsgType::GETPATH):
                 {
+                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
                     if(!logged)
                     {
                         std::cout<<"Utente non loggato, mandato messaggio al client" <<std::endl;
                         send_err_login(s_connesso);
                         MsgType id = MsgType::TRY_AGAIN_LOGIN;
                         ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                        replay=true;
-                        break;
+                        continue;
                     }
-
-                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
                     std::string buffer_str(buffer.begin(),buffer.end());
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
-                        break;
+                        continue;
                     }
                     std::cout << "Comando ricevuto: " << buffer.data() << std::endl;
                     incoming_message << buffer;
@@ -442,8 +461,7 @@ void thread_work()
                             std::cout << "Impossibile aprire il file: " << filename << std::endl;
                             /* send error message to client and close the connection */
                             send_err(s_connesso);
-                            replay=true;
-                            break;
+                            continue;
                         }
                         filesize = filestat.st_size;
                         filelastmod = filestat.st_mtime;
@@ -453,8 +471,7 @@ void thread_work()
                                                 fileptr);
                         if (send_result < 0) {
                             send_err(s_connesso);
-                            replay=true;
-                            break;
+                            continue;
                         }
                         std::cout << "File mandato con successo." << std::endl;
                         send_file_ok(s_connesso);
@@ -469,14 +486,12 @@ void thread_work()
                         logged=false;
                         std::cout<<"Ricevuto messaggio di Logout, chiusura connessione."<<std::endl;
                         send_logout_ok(s_connesso);
-                        replay=true;
                         break;
                     }
                     else
                     {
-                        replay=true;
                         send_err_logout(s_connesso);
-                        break;
+                        continue;
                     }
                 }
 
@@ -503,21 +518,28 @@ void thread_work()
                         }
                         else
                         {
-                            std::cout<<"Utente gia' registrato"<<std::endl;
+                            std::cout<<"Utente gia' registrato,mandato TRY AGAIN"<<std::endl;
                             send_err_register(s_connesso);
                             MsgType id = MsgType::TRY_AGAIN_REGISTER;
                             ssend(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
-                            replay=true;
+                            continue;
                         }
 
                         break;
                     }
                 }
-
-                default:
+                case(MsgType::ERROR):
+                {
+                    logged=false;
                     break;
+                }
+                default:
+                {
+                    logged=false;
+                    break;
+                }
             }
-            if(!logged && !replay && incoming_message.header.id!=MsgType::NONCE)
+            if(!logged && incoming_message.header.id!=MsgType::NONCE)
                 break;
         }
             /* select() ritorna 0, timeout */
