@@ -99,6 +99,37 @@ namespace Message {
             return msg;
         }
 
+         uint32_t get_id_uint32(MsgType type)
+        {
+            switch(type)
+            {
+                case (MsgType::NONCE):
+                    return 0;
+
+                case (MsgType::GETPATH):
+                    return 1;
+
+                case (MsgType::LOGIN):
+                    return 2;
+
+                case (MsgType::LOGOUT):
+                    return 3;
+                case (MsgType::REGISTER):
+                    return 4;
+                case (MsgType::CRC):
+                    return 5;
+                case (MsgType::ERROR):
+                    return 6;
+                case (MsgType::TRY_AGAIN_REGISTER):
+                    return 7;
+                case (MsgType::TRY_AGAIN_LOGIN):
+                    return 8;
+
+                default:
+                    return 6;//-1
+            }
+        }
+
         boost::system::error_code sendMessage(boost::asio::ip::tcp::socket& socket)
         {
             boost::system::error_code errorCode;

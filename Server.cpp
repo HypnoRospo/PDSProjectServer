@@ -15,7 +15,6 @@
 #include <boost/filesystem.hpp>
 
 
-#define DIM_FILENAME 255
 #define TIMEOUT_SECONDI 360
 #define TIMEOUT_MICROSECONDI 0
 #define OK "+OK\r\n"
@@ -30,11 +29,12 @@
 #define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
-#define CRC_HEADER "-SERVER: CRC "
+#define CRC_HEADER "-SERVER: CRC\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
+void progress_bar();
 Message::message_header<MsgType> leggi_header(int socket);
 void thread_work();
 void create_threads();
@@ -88,7 +88,6 @@ void create_threads()
 
     for(int j=0; j<Num_Threads ;j++)
     {  threads[j].join();}
-
 }
 
 
@@ -176,10 +175,12 @@ Message::message_header<MsgType> leggi_header(int socket)
             else break;
         }while(true);
 
+         comm=ntohl(comm);
          counter++;
 
         if(counter==1)
         {
+
             if(comm < crypto_pwhash_STRBYTES)  //controllo dimensione & sicurezza //todo
                 msg.size=comm;
             else{
@@ -231,16 +232,15 @@ Message::message_header<MsgType> leggi_header(int socket)
 }
 
 ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
-    ssize_t send;
-    char c,*filedata;
-    uint32_t file_dim, file_time;
 
-    filedata = (char*)malloc(fsize);
+    uint32_t file_dim, file_time;
+    ssize_t send;
+    std::vector<char> filedata(fsize);
+    char c;
 
     /* OK command */
     if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
        strlen(OK)){
-        free(filedata);
         return send;
     }
 
@@ -248,7 +248,6 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     file_dim = htonl(fsize);
     if((send = Send(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
        sizeof(file_dim)){
-        free(filedata);
         return send;
     }
 
@@ -256,14 +255,12 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     for(int i = 0; i < fsize; i++){
         int f = fread(&c, sizeof(c), 1, file);
         if(f < 0){
-            free(filedata);
             return -1;
         }
-        filedata[i] = c;
+        filedata[i]=c;
     }
-    send = Send(socket, filedata, fsize, MSG_NOSIGNAL);
+    send = Send(socket, filedata.data(), fsize, MSG_NOSIGNAL);
     if(send != fsize){
-        free(filedata);
         return send;
     }
 
@@ -271,20 +268,38 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
     file_time = htonl(tstamp);
     if((send = Send(socket, &file_time, sizeof(file_time), MSG_NOSIGNAL)) !=
        sizeof(file_time)){
-        free(filedata);
         return send;
     }
-
-    free(filedata);
     return fsize;
 }
 
+void progress_bar()
+{
+    float progress = 0.0;
+    while (progress < 1.0) {
+        size_t barWidth = 70;
+
+        std::cout << "[";
+        size_t pos = barWidth * progress;
+        for (int i = 0; i < barWidth; ++i) {
+            if (i < pos) std::cout << "=";
+            else if (i == pos) std::cout << ">";
+            else std::cout << " ";
+        }
+        std::cout << "] " << int(progress * 100.0) << " %\r";
+        std::cout.flush();
+
+        progress += 0.16; // for demonstration only
+    }
+    std::cout << std::endl;
+
+
+}
 
 void thread_work()
 {
     ssize_t read_result;
     ssize_t send_result;
-    char filename[DIM_FILENAME];
     uint32_t filesize;
     uint32_t filelastmod;
     FILE *fileptr;
@@ -377,7 +392,8 @@ void thread_work()
                             client_msg=ERRORE_REGISTER;
                             send_msg_client(s_connesso,client_msg);
                             MsgType id = MsgType::TRY_AGAIN_REGISTER;
-                            Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                            uint32_t id_newtork=htonl(incoming_message.get_id_uint32(id));
+                            Send(s_connesso,&id_newtork,sizeof(id_newtork),MSG_NOSIGNAL);
                             continue;
                         }
 
@@ -413,13 +429,15 @@ void thread_work()
                                  std::cout<<"Utente loggato correttamente"<<std::endl;
                                  client_msg=OK_LOGIN;
                                  send_msg_client(s_connesso,client_msg);
+                                 logged=true;
                              }
                              else {
                                  std::cout << "Utente non riconosciuto" << std::endl;
                                  client_msg=ERRORE_LOGIN;
                                  send_msg_client(s_connesso,client_msg);
                                  MsgType id = MsgType::TRY_AGAIN_LOGIN;
-                                 Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                                 uint32_t id_newtork=htonl(incoming_message.get_id_uint32(id));
+                                 Send(s_connesso,&id_newtork,sizeof(id_newtork),MSG_NOSIGNAL);
                                  continue;
                              }
                          }
@@ -438,7 +456,8 @@ void thread_work()
                         client_msg=ERRORE_LOGIN;
                         send_msg_client(s_connesso,client_msg);
                         MsgType id = MsgType::TRY_AGAIN_LOGIN;
-                        Send(s_connesso,&id,sizeof(id),MSG_NOSIGNAL);
+                        uint32_t id_newtork=htonl(incoming_message.get_id_uint32(id));
+                        Send(s_connesso,&id_newtork,sizeof(id_newtork),MSG_NOSIGNAL);
                         continue;
                     }
                     std::string buffer_str(buffer.begin(),buffer.end());
@@ -454,7 +473,7 @@ void thread_work()
                         /* open file and get its stat */
                         if ((fileptr = fopen(incoming_message.body.data(), "rb")) == nullptr ||
                             stat(incoming_message.body.data(), &filestat) != 0) {
-                            std::cout << "Impossibile aprire il file: " << filename << std::endl;
+                            std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
                             /* send error message to client and close the connection */
                             client_msg=ERRORE_RICHIESTA_FILE;
                             send_msg_client(s_connesso,client_msg);

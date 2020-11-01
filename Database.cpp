@@ -77,6 +77,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
 {
 
     try {
+        //controlli sanificazione utente e password //todo
         prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
         prep_stmt->setString( 1,user);
         res =  prep_stmt->executeQuery();
@@ -145,6 +146,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
 
 bool Database::searchUser(std::string &user,std::string &pass){
     try {
+        //controlli sanificazione utente e password  //todo
             // sql::ResultSet* res = stmt->executeQuery("SELECT * FROM users"); //Not useful just for check that connection works
             prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
             prep_stmt->setString( 1,user);
