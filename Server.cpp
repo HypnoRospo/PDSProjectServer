@@ -81,7 +81,7 @@ void Server::setServerPath(const std::string &serverPath) {
 
 void create_threads()
 {
-    unsigned int Num_Threads =  std::thread::hardware_concurrency()-1;
+    unsigned int Num_Threads =  std::thread::hardware_concurrency()-3;//da modificare
 
     for(int i = 0; i < Num_Threads; i++)
     {  threads.emplace_back(thread_work);}
@@ -124,6 +124,7 @@ ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size
     size_t read_count = sock.read_some(boost::asio::buffer(buffer, size));
 
      */
+ //todo ottimizzare velocita' con la foto di andrea
 
     while(counter < size){
 
@@ -495,6 +496,35 @@ void thread_work()
                         send_msg_client(s_connesso,client_msg);
                         fclose(fileptr);
                         continue;
+                }
+
+                case(MsgType::NEW_FILE):
+                {
+                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
+                    std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
+                    else
+                    {
+                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+                        //creare un file e metterlo nel nosstro direttorio
+                        size_t pos=0;
+                        std::string delimiter = "/r/n";
+                        std::string path_user;
+                        std::string body(incoming_message.body.begin(),incoming_message.body.end());
+                        pos = body.find(delimiter);
+                        path_user = body.substr(0, pos);
+                        body.erase(0, pos + delimiter.length());
+                        boost::filesystem::path target = path_user;
+                        std::ofstream  os(target,std::ofstream::binary);
+                        os.write(body.c_str(),body.size());
+                        client_msg=OK_FILE;
+                        send_msg_client(s_connesso,client_msg);
+                    }
+                    break;
                 }
 
                 case (MsgType::LOGOUT):
