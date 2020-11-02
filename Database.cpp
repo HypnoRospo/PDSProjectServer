@@ -110,7 +110,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
             delete prep_stmt;
 
             boost::system::error_code ec;
-            std::string path_server("../server_user/");
+            std::string path_server("../server_users/");
             std::string path_user(path_server+user);
             /*
             boost::filesystem::path directory(path_user);

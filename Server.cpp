@@ -36,6 +36,7 @@ ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
 void progress_bar();
+void check_directories(std::string& string);
 Message::message_header<MsgType> leggi_header(int socket);
 void thread_work();
 void create_threads();
@@ -62,7 +63,7 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
-        pinstance_->setServerPath("../server_user");
+        pinstance_->setServerPath("../server_users");
         boost::filesystem::create_directories(Server::getServerPath());
     }
     else
@@ -116,41 +117,26 @@ ssize_t send_msg_client(int sock,std::string& msg_client)
 
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size){
 
-    ssize_t read, read_count = 0,counter=0;
-    unsigned char comm= 0;
-    /*
-    boost::asio::io_context io_context;
-    boost::asio::ip::tcp::socket sock(io_context);
-    sock.assign(boost::asio::ip::tcp::v4(), socket);
-    size_t read_count = sock.read_some(boost::asio::buffer(buffer, size));
+    size_t original_bytes_to_recv = size;
+    // Continue looping while there are still bytes to receive
+    auto buffer_tmp=(unsigned char*) malloc(sizeof(unsigned char)*size);
 
-     */
- //todo ottimizzare velocita' con la foto di andrea
-
-    while(counter < size){
-
-        /* legge un carattere e controlla i possibili errori */
-        do{
-            if(read = recv(socket, &comm, sizeof(comm), 0) < 0){
-                if(INTERRUPTED_BY_SIGNAL)
-                    continue;
-                else
-                {
-                    read=-1;
-                    return read;
-                }
-
-            }
-            else break;
-        }while(true);
-
-        buffer.push_back(comm);
-        read_count++;
-        counter++;
+    while (size > 0)
+    {
+        ssize_t ret = recv(socket, buffer_tmp, size, 0);
+        if (ret <= 0)
+        {
+            // Error or connection closed
+            return ret;
+        }
+        // We have received ret bytes
+        size -= ret;  // Decrease size to receive for next iteration
+        buffer_tmp+= ret;     // Increase pointer to point to the next part of the buffer
     }
-    /* appendere per farlo diventare una stringa */
-
-    return read_count;
+    buffer_tmp-=original_bytes_to_recv;
+    buffer.insert(buffer.begin(),buffer_tmp,buffer_tmp+original_bytes_to_recv);
+    free(buffer_tmp);
+    return original_bytes_to_recv;  // Now all data have been received
 }
 
 Message::message_header<MsgType> leggi_header(int socket)
@@ -181,7 +167,7 @@ Message::message_header<MsgType> leggi_header(int socket)
          counter++;
 
         if(counter==1)
-        {    //controllo dimensione & sicurezza //todo
+        {    //controllo dimensione & sicurezza?
               msg.size=comm;
         }
         else
@@ -250,7 +236,8 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
         return send;
     }
 
-    /* prima leggo tutto e poi mando*/
+    // prima leggo tutto e poi mando
+    /*
     for(int i = 0; i < fsize; i++){
         int f = fread(&c, sizeof(c), 1, file);
         if(f < 0){
@@ -258,6 +245,10 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
         }
         filedata[i]=c;
     }
+     */
+    fread(&filedata[0],filedata.size()*sizeof(char), 1, file);
+
+
     send = Send(socket, filedata.data(), fsize, MSG_NOSIGNAL);
     if(send != fsize){
         return send;
@@ -294,6 +285,7 @@ void progress_bar()
 
 
 }
+
 
 void thread_work()
 {
@@ -515,10 +507,13 @@ void thread_work()
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
                         body.erase(0, pos + delimiter.length());
-                        pos=path_user.find("/");
+                        pos=path_user.find('/'); // ../server_user/../path_user allora necessario una manipolazione per eliminare i ".."
                         path_user=path_user.erase(0,pos);
                         boost::filesystem::path target =Server::getServerPath()+path_user;
-                        //sbagliato,da correggere ma okay
+                        //controllo cartelle + smanetting
+                        pos = target.string().find_last_of('/');
+                        boost::filesystem::create_directories(target.string().substr(0,pos));
+                        //
                         std::ofstream  os(target,std::ios::out | std::ios::app | std::ios::binary);
                         if (os.is_open())
                         {
