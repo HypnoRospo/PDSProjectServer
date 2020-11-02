@@ -28,6 +28,7 @@
 #define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA\r\n"
 #define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
+#define OK_FILE_R "-SERVER: FILE RICEVUTO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 #define CRC_HEADER "-SERVER: CRC\r\n"
 
@@ -71,8 +72,8 @@ Server *Server::start(const int port)
     return pinstance_;
 }
 
-const std::string &Server::getServerPath() const {
-    return server_path;
+const std::string &Server::getServerPath() {
+    return pinstance_->server_path;
 }
 
 void Server::setServerPath(const std::string &serverPath) {
@@ -180,15 +181,8 @@ Message::message_header<MsgType> leggi_header(int socket)
          counter++;
 
         if(counter==1)
-        {
-
-            if(comm < crypto_pwhash_STRBYTES)  //controllo dimensione & sicurezza //todo
-                msg.size=comm;
-            else{
-                msg.size=0; //null
-                msg.id=MsgType::ERROR;
-                return msg;
-            }
+        {    //controllo dimensione & sicurezza //todo
+              msg.size=comm;
         }
         else
         {
@@ -221,6 +215,10 @@ Message::message_header<MsgType> leggi_header(int socket)
                     break;
                 case 8:
                     msg.id=MsgType::TRY_AGAIN_LOGIN;
+                    break;
+
+                case 9:
+                    msg.id=MsgType::NEW_FILE;
                     break;
 
                 default:
@@ -377,7 +375,6 @@ void thread_work()
                     else
                     {
                         incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
-
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
                         if(Database::checkUser(MsgType::REGISTER,buffer))
@@ -518,10 +515,19 @@ void thread_work()
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
                         body.erase(0, pos + delimiter.length());
-                        boost::filesystem::path target = path_user;
-                        std::ofstream  os(target,std::ofstream::binary);
-                        os.write(body.c_str(),body.size());
-                        client_msg=OK_FILE;
+                        boost::filesystem::path target =Server::getServerPath()+path_user;
+                        //sbagliato,da correggere ma okay
+                        std::ofstream  os(target,std::ios::out | std::ios::app | std::ios::binary);
+                        if (os.is_open())
+                        {
+                            os<<body;
+                            os.close();
+                            client_msg=OK_FILE_R;
+                        }
+                        else {
+                            std::cout << "Unable to open file";
+                            client_msg=ERRORE;
+                        }
                         send_msg_client(s_connesso,client_msg);
                     }
                     break;

@@ -31,7 +31,6 @@ private:
 protected:
     explicit Server(int  port): port_(port) {}
     int port_;
-    std::string server_path;
 
 public:
     /**
@@ -40,9 +39,9 @@ public:
     Server(Server &other) = delete;
     ~Server() = default;
 
-    [[nodiscard]] const std::string &getServerPath() const;
+    [[nodiscard]] static const std::string &getServerPath();
     void setServerPath(const std::string &serverPath);
-
+    std::string server_path;
 
     /**
      * Singletons should not be assignable.
