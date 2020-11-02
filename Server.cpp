@@ -62,8 +62,8 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
-        pinstance_->setServerPath("../server_user/");
-        boost::filesystem::create_directories(pinstance_->getServerPath());
+        pinstance_->setServerPath("../server_user");
+        boost::filesystem::create_directories(Server::getServerPath());
     }
     else
     {
@@ -515,6 +515,8 @@ void thread_work()
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
                         body.erase(0, pos + delimiter.length());
+                        pos=path_user.find("/");
+                        path_user=path_user.erase(0,pos);
                         boost::filesystem::path target =Server::getServerPath()+path_user;
                         //sbagliato,da correggere ma okay
                         std::ofstream  os(target,std::ios::out | std::ios::app | std::ios::binary);
