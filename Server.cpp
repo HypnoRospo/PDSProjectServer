@@ -13,7 +13,11 @@
 #include "Database.h"
 #include "Message.h"
 #include <boost/filesystem.hpp>
-#include "Checksum.h"
+#include <boost/crc.hpp>
+
+#ifndef PRIVATE_BUFFER_SIZE
+#define PRIVATE_BUFFER_SIZE  8192
+#endif
 
 #define TIMEOUT_SECONDI 360
 #define TIMEOUT_MICROSECONDI 0
@@ -27,6 +31,8 @@
 #define OK_NONCE "-SERVER: NONCE SETTED\r\n"
 #define OK_REGISTER "-SERVER: REGISTRAZIONE AVVENUTA\r\n"
 #define ERRORE_REGISTER "-SERVER: REGISTRAZIONE FALLITA\r\n"
+#define OK_CHECKSUM "-SERVER: CHECKSUM CORRETTO\r\n"
+#define ERRORE_CHECKSUM "-SERVER: CHECKSUM NON CORRETTO\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define OK_FILE_R "-SERVER: FILE RICEVUTO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
@@ -36,7 +42,7 @@ ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
 void progress_bar();
-void check_directories(std::string& string);
+std::string calculate_checksum(std::ifstream &ifs);
 Message::message_header<MsgType> leggi_header(int socket);
 void thread_work();
 void create_threads();
@@ -202,9 +208,12 @@ Message::message_header<MsgType> leggi_header(int socket)
                 case 8:
                     msg.id=MsgType::TRY_AGAIN_LOGIN;
                     break;
-
                 case 9:
                     msg.id=MsgType::NEW_FILE;
+                    break;
+
+                case 10:
+                    msg.id=MsgType::MODIFIED_FILE;
                     break;
 
                 default:
@@ -554,19 +563,24 @@ void thread_work()
                         path_user = path_user.erase(0, pos);
                         boost::filesystem::path target = Server::getServerPath() + path_user;
                         /* Il body ora contiene solo il checksum */
-                        std::string checksum = body.data();
-
+                        std::string checksum = body.substr(0,body.find(delimiter));
                         /* Se l'if restituisce TRUE non c'è bisogno di richiedere il file, se FALSE allora c'è bisogno del file */
                         std::ifstream  ifs(target,std::ios::binary);
+
                         if (checksum == calculate_checksum(ifs)){
 
                             //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
-
+                            std::cout<<"Checksum corrispondente, file gia' presente nel server"<<std::endl;
+                            client_msg=OK_CHECKSUM;
                         }
-
-
-
-
+                        else
+                        {
+                            std::cout<<"Checksum non corrisposto, file diverso da quello presente nel sistema"<<std::endl;
+                            client_msg=ERRORE_CHECKSUM;
+                            client_msg.append(path_user);
+                            client_msg.append(delimiter);
+                        }
+                        send_msg_client(s_connesso,client_msg);
                     }
                     break;
                 }
@@ -626,5 +640,54 @@ void thread_work()
 
         std::cout << "In attesa di connessioni..." << std::endl;
     }
+}
+
+
+std::string calculate_checksum(std::ifstream &ifs) {
+
+    std::streamsize const  buffer_size = PRIVATE_BUFFER_SIZE;
+
+    std::string error = "Errore calcolo CRC";
+
+    try
+    {
+        boost::crc_32_type  result;
+        clock_t tStart = clock();
+        if ( ifs )
+        {
+            do
+            {
+                char  buffer[ buffer_size ];
+                ifs.read( buffer, buffer_size );
+                result.process_bytes( buffer, ifs.gcount() );
+            } while ( ifs );
+        }
+        else
+        {
+            std::cerr << "Impossibile aprire il file '"<< std::endl;
+        }
+        std::cout<<"Tempo impiegato per il calcolo del CRC: "<<(double)(clock() - tStart)/CLOCKS_PER_SEC;
+
+        std::cout << std::hex << std::uppercase << result.checksum() << std::endl;
+
+        std::stringstream stream;
+        stream << std::hex << std::uppercase << result.checksum();
+        std::string res = stream.str();
+        return res;
+
+    }
+    catch ( std::exception &e )
+    {
+        std::cerr << "Found an exception with '" << e.what() << "'." << std::endl;
+        return e.what();
+        /* VA GESTITA LA RETURN ADATTA */
+    }
+    catch ( ... )
+    {
+        std::cerr << "Found an unknown exception." << std::endl;
+        /* VA GESTITA LA RETURN ADATTA */
+        return error;
+    }
+
 }
 

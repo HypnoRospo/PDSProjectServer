@@ -124,6 +124,10 @@ namespace Message {
                     return 7;
                 case (MsgType::TRY_AGAIN_LOGIN):
                     return 8;
+                case(MsgType::NEW_FILE):
+                    return 9;
+                case(MsgType::MODIFIED_FILE):
+                    return 10;
 
                 default:
                     return 6;//-1
