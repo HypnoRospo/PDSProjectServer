@@ -13,7 +13,7 @@
 #include "Database.h"
 #include "Message.h"
 #include <boost/filesystem.hpp>
-
+#include "Checksum.h"
 
 #define TIMEOUT_SECONDI 360
 #define TIMEOUT_MICROSECONDI 0
@@ -530,6 +530,47 @@ void thread_work()
                     break;
                 }
 
+                case(MsgType::MODIFIED_FILE): {
+
+                    read_result = leggi_comando(s_connesso, buffer, incoming_message.header.size);
+                    std::cout << "BUFFER SIZE:  " << buffer.size() << std::endl;
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    } else {
+                        incoming_message
+                                << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+                        //creare un file e metterlo nel nosstro direttorio
+                        size_t pos = 0;
+                        std::string delimiter = "/r/n";
+                        std::string path_user;
+                        std::string body(incoming_message.body.begin(), incoming_message.body.end());
+                        pos = body.find(delimiter);
+                        path_user = body.substr(0, pos);
+                        body.erase(0, pos + delimiter.length());
+                        pos = path_user.find(
+                                '/'); // ../server_user/../path_user allora necessario una manipolazione per eliminare i ".."
+                        path_user = path_user.erase(0, pos);
+                        boost::filesystem::path target = Server::getServerPath() + path_user;
+                        /* Il body ora contiene solo il checksum */
+                        std::string checksum = body.data();
+
+                        /* Se l'if restituisce TRUE non c'è bisogno di richiedere il file, se FALSE allora c'è bisogno del file */
+                        std::ifstream  ifs(target,std::ios::binary);
+                        if (checksum == calculate_checksum(ifs)){
+
+                            //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
+
+                        }
+
+
+
+
+                    }
+                    break;
+                }
+
                 case (MsgType::LOGOUT):
                 {
                     if(logged)
@@ -586,3 +627,4 @@ void thread_work()
         std::cout << "In attesa di connessioni..." << std::endl;
     }
 }
+
