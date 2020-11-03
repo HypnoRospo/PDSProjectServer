@@ -110,29 +110,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
             delete prep_stmt;
 
             boost::system::error_code ec;
-            std::string path_server("../server_users/");
-            std::string path_user(path_server+user);
-            /*
-            boost::filesystem::path directory(path_user);
-            if (boost::filesystem::exists(directory) && boost::filesystem::is_directory(directory))
-            {
-                //
-                //boost::filesystem::directory_iterator begin(directory);
-                //boost::filesystem::directory_iterator end;
-                /* //stampa il contenuto
-                while(begin != end)
-                {
-                    std::cout << *begin << " "; //controllo checksum or hash
-                    ++begin;
-                }
-                std::cout << "\n";
-
-                std::cout<<"Folder Utente presente nel sistema, utente gia' registrato"<<std::endl;
-                //return true;
-            }
-             */
-            //boost::filesystem::current_path(path_server);
-            boost::filesystem::create_directories(path_user,ec);
+            boost::filesystem::create_directories(user,ec);
             return true;
         }
         }

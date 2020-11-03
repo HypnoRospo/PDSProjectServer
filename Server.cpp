@@ -66,7 +66,7 @@ Server *Server::start(const int port)
     {
         pinstance_ = new Server(port);
         ss = new ServerSocket(port);
-        pinstance_->setServerPath("../server_users");
+        pinstance_->setServerPath("../server_users/");
         boost::filesystem::create_directories(Server::getServerPath());
         boost::filesystem::current_path(Server::getServerPath());
     }
@@ -514,14 +514,12 @@ void thread_work()
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
                         body.erase(0, pos + delimiter.length());
-                        pos=path_user.find('/'); // ../server_user/../path_user allora necessario una manipolazione per eliminare i ".."
-                        path_user=path_user.erase(0,pos);
                         boost::filesystem::path target =Server::getServerPath()+path_user;
                         //controllo cartelle + smanetting
                         pos = target.string().find_last_of('/');
                         boost::filesystem::create_directories(target.string().substr(0,pos));
                         //
-                        std::ofstream  os(target,std::ios::out | std::ios::app | std::ios::binary);
+                        std::ofstream  os(target,std::ios::out | std::ios::binary | std::ios::trunc);
                         if (os.is_open())
                         {
                             os<<body;
@@ -556,9 +554,6 @@ void thread_work()
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
                         body.erase(0, pos + delimiter.length());
-                        pos = path_user.find(
-                                '/'); // ../server_user/../path_user allora necessario una manipolazione per eliminare i ".."
-                        path_user = path_user.erase(0, pos);
                         boost::filesystem::path target = Server::getServerPath() + path_user;
                         /* Il body ora contiene solo il checksum */
                         std::string checksum = body.substr(0,body.find(delimiter));
@@ -575,7 +570,6 @@ void thread_work()
                             std::cout<<"Checksum non corrisposto, file diverso da quello presente nel sistema"<<std::endl;
                             client_msg=ERRORE_CHECKSUM;
                             client_msg.append(path_user);
-                            client_msg.append(delimiter);
                         }
                         send_msg_client(s_connesso,client_msg);
                     }
