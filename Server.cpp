@@ -15,10 +15,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/crc.hpp>
 
-#ifndef PRIVATE_BUFFER_SIZE
-#define PRIVATE_BUFFER_SIZE  8192
-#endif
 
+#define PRIVATE_BUFFER_SIZE  8192
 #define TIMEOUT_SECONDI 360
 #define TIMEOUT_MICROSECONDI 0
 #define OK "+OK\r\n"
@@ -36,7 +34,6 @@
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define OK_FILE_R "-SERVER: FILE RICEVUTO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
-#define CRC_HEADER "-SERVER: CRC\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
@@ -71,6 +68,7 @@ Server *Server::start(const int port)
         ss = new ServerSocket(port);
         pinstance_->setServerPath("../server_users");
         boost::filesystem::create_directories(Server::getServerPath());
+        boost::filesystem::current_path(Server::getServerPath());
     }
     else
     {
@@ -510,7 +508,7 @@ void thread_work()
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         //creare un file e metterlo nel nosstro direttorio
                         size_t pos=0;
-                        std::string delimiter = "/r/n";
+                        std::string delimiter = "\r\n";
                         std::string path_user;
                         std::string body(incoming_message.body.begin(),incoming_message.body.end());
                         pos = body.find(delimiter);
@@ -552,7 +550,7 @@ void thread_work()
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         //creare un file e metterlo nel nosstro direttorio
                         size_t pos = 0;
-                        std::string delimiter = "/r/n";
+                        std::string delimiter = "\r\n";
                         std::string path_user;
                         std::string body(incoming_message.body.begin(), incoming_message.body.end());
                         pos = body.find(delimiter);
@@ -566,7 +564,6 @@ void thread_work()
                         std::string checksum = body.substr(0,body.find(delimiter));
                         /* Se l'if restituisce TRUE non c'è bisogno di richiedere il file, se FALSE allora c'è bisogno del file */
                         std::ifstream  ifs(target,std::ios::binary);
-
                         if (checksum == calculate_checksum(ifs)){
 
                             //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
@@ -647,20 +644,29 @@ std::string calculate_checksum(std::ifstream &ifs) {
 
     std::streamsize const  buffer_size = PRIVATE_BUFFER_SIZE;
 
-    std::string error = "Errore calcolo CRC";
-
     try
     {
         boost::crc_32_type  result;
         clock_t tStart = clock();
         if ( ifs )
         {
-            do
+            // get length of file:
+            ifs.seekg (0, std::ifstream::end);
+            int length = ifs.tellg();
+            ifs.seekg (0, std::ifstream::beg);
+            //
+
+            if(length > buffer_size)
             {
-                char  buffer[ buffer_size ];
-                ifs.read( buffer, buffer_size );
-                result.process_bytes( buffer, ifs.gcount() );
-            } while ( ifs );
+                std::vector<char>   buffer(buffer_size);
+                while(ifs.read(&buffer[0], buffer_size))
+                    result.process_bytes(&buffer[0], ifs.gcount());
+            }
+            else {
+                std::vector<char> buffer(length);
+                ifs.read(&buffer[0],length);
+                result.process_bytes(&buffer[0],ifs.gcount());
+            }
         }
         else
         {
@@ -672,8 +678,7 @@ std::string calculate_checksum(std::ifstream &ifs) {
 
         std::stringstream stream;
         stream << std::hex << std::uppercase << result.checksum();
-        std::string res = stream.str();
-        return res;
+        return stream.str();
 
     }
     catch ( std::exception &e )
@@ -685,8 +690,9 @@ std::string calculate_checksum(std::ifstream &ifs) {
     catch ( ... )
     {
         std::cerr << "Found an unknown exception." << std::endl;
+        return "Errore sconosciuto sul calcolo CRC";
         /* VA GESTITA LA RETURN ADATTA */
-        return error;
+
     }
 
 }
