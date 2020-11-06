@@ -615,7 +615,7 @@ void thread_work()
                         std::string body(incoming_message.body.begin(),incoming_message.body.end());
                         pos = body.find(delimiter);
                         path_user = body.substr(0, pos);
-                        body.erase(0, pos + delimiter.length());
+                        //body.erase(0, pos + delimiter.length());
                         boost::filesystem::path target =Server::getServerPath()+path_user;
                         if(boost::filesystem::is_regular_file(target))
                         {
