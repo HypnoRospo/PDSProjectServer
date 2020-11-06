@@ -617,6 +617,7 @@ void thread_work()
                         path_user = body.substr(0, pos);
                         //body.erase(0, pos + delimiter.length());
                         boost::filesystem::path target =Server::getServerPath()+path_user;
+                        /*
                         if(boost::filesystem::is_regular_file(target))
                         {
                             if(!boost::filesystem::remove(target)) {
@@ -624,6 +625,7 @@ void thread_work()
                             }
                         }
                         else
+                         */
                             boost::filesystem::remove_all(target);
                         client_msg = OK_FILE_DELETED;
                         send_msg_client(s_connesso,client_msg);
