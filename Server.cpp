@@ -33,6 +33,8 @@
 #define ERRORE_CHECKSUM "-SERVER: CHECKSUM NON CORRETTO\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define OK_FILE_R "-SERVER: FILE RICEVUTO CON SUCCESSO\r\n"
+#define ERR_DELETED "-SERVER: ERRORE ELIMINAZIONE FILE o PATHS\r\n"
+#define OK_FILE_DELETED "-SERVER: FILE o PATH ELIMINATO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
@@ -211,7 +213,7 @@ Message::message_header<MsgType> leggi_header(int socket)
                     break;
 
                 case 10:
-                    msg.id=MsgType::MODIFIED_FILE;
+                    msg.id=MsgType::DELETE;
                     break;
 
                 default:
@@ -517,25 +519,30 @@ void thread_work()
                         boost::filesystem::path target =Server::getServerPath()+path_user;
                         //controllo cartelle + smanetting
                         pos = target.string().find_last_of('/');
-                        boost::filesystem::create_directories(target.string().substr(0,pos));
+                        if((pos+1)!=target.size())
+                            boost::filesystem::create_directories(target.string().substr(0,pos));
+                        else boost::filesystem::create_directories(target);
                         //
-                        std::ofstream  os(target,std::ios::out | std::ios::binary | std::ios::trunc);
-                        if (os.is_open())
+                        client_msg=OK_FILE_R;
+                        if((pos+1)!=target.size())
                         {
-                            os<<body;
-                            os.close();
-                            client_msg=OK_FILE_R;
-                        }
-                        else {
-                            std::cout << "Unable to open file";
-                            client_msg=ERRORE;
+                            std::ofstream  os(target,std::ios::out | std::ios::binary | std::ios::trunc);
+                            if (os.is_open())
+                            {
+                                os<<body;
+                                os.close();
+                            }
+                            else {
+                                std::cout << "Unable to open file";
+                                client_msg=ERRORE;
+                            }
                         }
                         send_msg_client(s_connesso,client_msg);
                     }
                     break;
                 }
 
-                case(MsgType::MODIFIED_FILE): {
+                case(MsgType::CRC): {
 
                     read_result = leggi_comando(s_connesso, buffer, incoming_message.header.size);
                     std::cout << "BUFFER SIZE:  " << buffer.size() << std::endl;
@@ -558,19 +565,67 @@ void thread_work()
                         /* Il body ora contiene solo il checksum */
                         std::string checksum = body.substr(0,body.find(delimiter));
                         /* Se l'if restituisce TRUE non c'è bisogno di richiedere il file, se FALSE allora c'è bisogno del file */
-                        std::ifstream  ifs(target,std::ios::binary);
-                        if (checksum == calculate_checksum(ifs)){
 
-                            //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
-                            std::cout<<"Checksum corrispondente, file gia' presente nel server"<<std::endl;
-                            client_msg=OK_CHECKSUM;
+                        if(boost::filesystem::exists(target))
+                        {
+                            std::ifstream  ifs(target,std::ios::binary);
+                            if (checksum == calculate_checksum(ifs)){
+
+                                //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
+                                std::cout<<"Checksum corrispondente, file gia' presente nel server"<<std::endl;
+                                client_msg=OK_CHECKSUM;
+                            }
+                            else
+                            {
+                                std::cout<<"Checksum non corrisposto, file diverso da quello presente nel sistema, sincronizzazione necessaria"<<std::endl;
+                                client_msg=ERRORE_CHECKSUM;
+                                client_msg.append(path_user);
+                                client_msg.append(delimiter);
+                            }
                         }
                         else
                         {
-                            std::cout<<"Checksum non corrisposto, file diverso da quello presente nel sistema"<<std::endl;
+                            std::cout<<"File non presente nel sistema, sincronizzazione necessaria"<<std::endl;
                             client_msg=ERRORE_CHECKSUM;
                             client_msg.append(path_user);
+                            client_msg.append(delimiter);
                         }
+
+                        send_msg_client(s_connesso,client_msg);
+                    }
+                    break;
+                }
+
+                case (MsgType::DELETE):
+                {
+                    read_result = leggi_comando(s_connesso, buffer,incoming_message.header.size);
+                    std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
+                    if (read_result == -1) {
+                        std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
+                        break;
+                    }
+                    else
+                    {
+                        incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
+                        std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
+                        //creare un file e metterlo nel nosstro direttorio
+                        size_t pos=0;
+                        std::string delimiter = "\r\n";
+                        std::string path_user;
+                        std::string body(incoming_message.body.begin(),incoming_message.body.end());
+                        pos = body.find(delimiter);
+                        path_user = body.substr(0, pos);
+                        body.erase(0, pos + delimiter.length());
+                        boost::filesystem::path target =Server::getServerPath()+path_user;
+                        if(boost::filesystem::is_regular_file(target))
+                        {
+                            if(!boost::filesystem::remove(target)) {
+                                client_msg = ERR_DELETED;
+                            }
+                        }
+                        else
+                            boost::filesystem::remove_all(target);
+                        client_msg = OK_FILE_DELETED;
                         send_msg_client(s_connesso,client_msg);
                     }
                     break;
@@ -622,6 +677,8 @@ void thread_work()
             send_msg_client(s_connesso,client_msg);
             break;
         }
+        buffer.clear();
+        buffer.shrink_to_fit();
     }
 
         mtx.lock();

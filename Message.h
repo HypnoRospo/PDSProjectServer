@@ -20,7 +20,7 @@
 
 enum class MsgType : uint32_t
 {
-    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,CRC,ERROR, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN,NEW_FILE,MODIFIED_FILE
+    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,CRC,ERROR, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN,NEW_FILE,DELETE
 };
 
 namespace Message {
@@ -126,7 +126,7 @@ namespace Message {
                     return 8;
                 case(MsgType::NEW_FILE):
                     return 9;
-                case(MsgType::MODIFIED_FILE):
+                case(MsgType::DELETE):
                     return 10;
 
                 default:

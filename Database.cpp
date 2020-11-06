@@ -156,7 +156,7 @@ bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
     std::string user;
     std::string delimiter = " ";
     std::string decrypt;
-    std::string encrypted(vect_user.begin(),vect_user.end());
+    //std::string encrypted(vect_user.begin(),vect_user.end());
     decrypt=Database::decrypt(vect_user);
     //  while ((pos = str.find(delimiter)) != std::string::npos) {
     pos = decrypt.find(delimiter);
