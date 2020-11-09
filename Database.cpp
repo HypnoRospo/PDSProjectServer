@@ -27,6 +27,7 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
  sql::Statement *stmt;
  sql::ResultSet *res;
  sql::PreparedStatement *prep_stmt;
+ extern std::string user_now;
 
  Database* Database::create_instance()
 {
@@ -165,6 +166,7 @@ bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
     std::string pass = decrypt.substr(0, decrypt.length());
     //  }
     std::cout << "username: " << user << " password: " << pass << std::endl;
+    user_now=user;
 
      switch(msg)
      {

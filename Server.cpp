@@ -56,6 +56,7 @@ std::vector<std::thread> threads;
 ServerSocket *ss {nullptr};
 std::vector<Socket> sockets;
 std::mutex mtx;           // mutex for critical section
+std::string user_now;
 /**
  * The first time we call GetInstance we will lock the storage location
  *      and then we make sure again that the variable is null and then we
@@ -460,6 +461,18 @@ void thread_work()
                         continue;
                     }
                     std::string buffer_str(buffer.begin(),buffer.end());
+                    std::string path_init= buffer_str.substr(0,user_now.size());
+
+                    if(path_init!=user_now)
+                    {
+                        std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
+                        std::cout<<"Path iniziale non corrisponde all'user attuale."<<std::endl;
+                        /* send error message to client and close the connection */
+                        client_msg=ERRORE_RICHIESTA_FILE;
+                        send_msg_client(s_connesso,client_msg);
+                        continue;
+                    }
+
                     if (read_result == -1) {
                         std::cout << "Impossibile leggere il comando dal client, riprovare." << std::endl;
                         continue;
@@ -470,8 +483,8 @@ void thread_work()
 
                         struct stat filestat;
                         /* open file and get its stat */
-                        if ((fileptr = fopen(incoming_message.body.data(), "rb")) == nullptr ||
-                            stat(incoming_message.body.data(), &filestat) != 0) {
+                        if ((fileptr = fopen(buffer_str.c_str(), "rb")) == nullptr ||
+                            stat(buffer_str.c_str(), &filestat) != 0) {
                             std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
                             /* send error message to client and close the connection */
                             client_msg=ERRORE_RICHIESTA_FILE;
