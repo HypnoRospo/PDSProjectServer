@@ -38,7 +38,7 @@
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
-ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file);
+ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::string& file_path);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
 void progress_bar();
 std::string calculate_checksum(std::ifstream &ifs);
@@ -50,11 +50,11 @@ void create_threads();
  * Static methods should be defined outside the class.
  */
 
-Server* Server::pinstance_{nullptr};
-std::mutex Server::mutex_;
+Server* Server::pinstance_{nullptr}; /* singleton */
+std::mutex Server::mutex_; /* singleton */
 std::vector<std::thread> threads;
-ServerSocket *ss {nullptr};
-std::vector<Socket> sockets;
+ServerSocket *ss {nullptr};  /* Puntatore alla struttura dati creata dal professore */
+std::vector<Socket> sockets; /* ci poteva stare anche una lista */
 std::mutex mtx;           // mutex for critical section
 std::string user_now;
 /**
@@ -94,6 +94,8 @@ void create_threads()
 
     for(int i = 0; i < Num_Threads; i++)
     {  threads.emplace_back(thread_work);}
+
+    /* in realta' il thread principale potrebbe gia' finire, valutare come gestire al meglio questa situazione */
 
     for(int j=0; j<Num_Threads ;j++)
     {  threads[j].join();}
@@ -226,12 +228,13 @@ Message::message_header<MsgType> leggi_header(int socket)
     return msg;
 }
 
-ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
+ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::string& file_path){
 
     uint32_t file_dim, file_time;
     ssize_t send;
     std::vector<char> filedata(fsize);
-    char c;
+
+    file_path=file_path+"\r\n";
 
     /* OK command */
     if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
@@ -239,12 +242,18 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
         return send;
     }
 
-    /*  dimensione file  */
+    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
+       file_path.size()){
+        return send;
+    }
+
+    /*  dimensione file
     file_dim = htonl(fsize);
     if((send = Send(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
        sizeof(file_dim)){
         return send;
     }
+     */
 
     // prima leggo tutto e poi mando
     /*
@@ -264,12 +273,13 @@ ssize_t send_file(int socket, const off_t fsize, time_t tstamp, FILE* file){
         return send;
     }
 
-    /* timestamp */
+    /*
     file_time = htonl(tstamp);
     if((send = Send(socket, &file_time, sizeof(file_time), MSG_NOSIGNAL)) !=
        sizeof(file_time)){
         return send;
     }
+     */
     return fsize;
 }
 
@@ -297,6 +307,9 @@ void progress_bar()
 }
 
 
+/* rivedere e testare bene questa parte ! */
+/* gestione critica delle risorse -> controllare bene e semmai riprogettare */
+
 void thread_work()
 {
     ssize_t read_result;
@@ -313,6 +326,7 @@ void thread_work()
         unsigned int len = sizeof(addr);
         //std::cout << "In attesa di connessioni..." << std::endl;
         sockets.push_back( ss->accept_request(&addr,&len));
+        /* mtx.lock cosi dovrebbe fungere */
         mtx.lock();
         s_connesso= sockets.back().getSockfd();
         my_socket_index=sockets.size()-1;
@@ -496,7 +510,7 @@ void thread_work()
 
                         std::cout << "Ricerca file andata a buon fine." << std::endl;
                         send_result = send_file(s_connesso, filesize, filelastmod,
-                                                fileptr);
+                                                fileptr,buffer_str);
                         if (send_result < 0) {
                             client_msg=ERRORE_RICHIESTA_FILE;
                             send_msg_client(s_connesso,client_msg);
