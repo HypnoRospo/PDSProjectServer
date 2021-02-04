@@ -1,8 +1,3 @@
-//
-// Created by enrico_scalabrino on 10/10/20.
-//
-
-
 #include "SocketWrap.h"
 #include <iostream>
 #include <string>

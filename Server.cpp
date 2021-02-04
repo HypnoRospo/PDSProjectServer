@@ -1,6 +1,3 @@
-//
-// Created by enrico_scalabrino on 10/10/20.
-//
 #include "Server.h"
 #include <iostream>
 #include <string>
@@ -69,7 +66,25 @@ Server *Server::start(const int port)
     if (pinstance_ == nullptr)
     {
         pinstance_ = new Server(port);
-        ss = new ServerSocket(port);
+        int count = 0;
+        int maxTries = 3;
+
+        while(true)
+        {
+        try {
+            ss = new ServerSocket(port);
+            break;
+        }
+        catch(std::runtime_error &re)
+        {
+            if (++count == maxTries)
+            {
+                std::cout<<re.what()<<std::endl;
+                exit(EXIT_FAILURE);
+            }
+            sleep(5);
+        }
+        }
         pinstance_->setServerPath("../server_users/");
         boost::filesystem::create_directories(Server::getServerPath());
         boost::filesystem::current_path(Server::getServerPath());
@@ -335,7 +350,14 @@ void thread_work()
         struct sockaddr_in addr;
         unsigned int len = sizeof(addr);
         //std::cout << "In attesa di connessioni..." << std::endl;
-        sockets.push_back( ss->accept_request(&addr,&len));
+        try{
+            sockets.push_back( ss->accept_request(&addr,&len));
+        }
+        catch(std::runtime_error &re)
+        {
+            std::cout<<re.what()<<std::endl;
+            continue;
+        }
         /* mtx.lock cosi dovrebbe fungere */
         mtx.lock();
         s_connesso= sockets.back().getSockfd();

@@ -1,6 +1,3 @@
-//
-// Created by enrico_scalabrino on 17/10/20.
-//
 #ifndef PDSPROJECTSERVER_MESSAGE_H
 #define PDSPROJECTSERVER_MESSAGE_H
 

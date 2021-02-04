@@ -1,7 +1,3 @@
-//
-// Created by enrico_scalabrino on 10/10/20.
-//
-
 #ifndef PDSPROJECTSERVER_SOCKET_H
 #define PDSPROJECTSERVER_SOCKET_H
 
@@ -82,33 +78,53 @@ public:
         sockaddrIn.sin_port = htons(port);
         sockaddrIn.sin_addr.s_addr = htonl(INADDR_ANY);
         //bind
-        Bind(sockfd, reinterpret_cast<struct sockaddr*>(&sockaddrIn), sizeof(sockaddrIn));
+        try{
+            Bind(sockfd, reinterpret_cast<struct sockaddr*>(&sockaddrIn), sizeof(sockaddrIn));
+        }
+        catch(std::runtime_error &re)
+        {
+            throw re;
+        }
+
         std::cout<<"Socket created, listening on : "<<inet_ntoa(sockaddrIn.sin_addr)<<":"<< ntohs(sockaddrIn.sin_port)<<std::endl;
         //listen
-        Listen(sockfd,CODA_ASCOLTO);
-
+        try{
+            Listen(sockfd,CODA_ASCOLTO);
+        }
+        catch(std::runtime_error &re)
+        {
+            throw re;
+        }
     }
 
     //Socket accept() {}
     // fd= ::accept..
     //return Socket(fd);
+  //todo gestirlo
 
     Socket accept_request(struct sockaddr_in* addr,unsigned int* len)
     {
         int fd;
-        try {
-             fd = Accept(sockfd,reinterpret_cast<struct sockaddr*>(addr),len);
-             if (fd <0 ) throw std::runtime_error("Cannot accept socket");
-        }
-        catch(std::runtime_error& re)
+        int count = 0;
+        int maxTries = 3;
+
+        while(true)
         {
-            std::cout << "Impossibile stabilire la connessione con il client %s attraverso porta %u" <<
-                      inet_ntoa(addr->sin_addr) << ntohs(addr->sin_port) << std::endl;
-            std::cerr<<re.what()<<std::endl;
+                fd = Accept(sockfd,reinterpret_cast<struct sockaddr*>(addr),len);
+                if (fd <0 )
+                {
+                    std::cout << "Impossibile stabilire la connessione con il client %s attraverso porta %u" <<
+                              inet_ntoa(addr->sin_addr) << ntohs(addr->sin_port) << std::endl;
+                    //ritentare
+                    if (++count == maxTries)
+                    {
+                        throw std::runtime_error("Impossibile accettare una connessione");
+                    }
+                    sleep(2);
+                }
+                else break;
+
         }
-        //gestire il throw to do -> basta una print tanto l'esecuzione continua nel server.cpp con continue
-
-
         return Socket(fd);
     }
 

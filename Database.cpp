@@ -1,10 +1,3 @@
-
-//
-// Created by enrico_scalabrino on 10/10/20.
-//
-
-
-//#include <mysql_connection.h>
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
 #include <cppconn/resultset.h>
@@ -13,7 +6,6 @@
 #include "Database.h"
 #include <sodium.h>
 #include <sodium/crypto_pwhash.h>
-#include <boost/filesystem.hpp>
 #include <boost/filesystem/operations.hpp>
 #include "Message.h"
 using namespace sql;

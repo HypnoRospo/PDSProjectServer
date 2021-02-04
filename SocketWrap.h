@@ -1,7 +1,3 @@
-//
-// Created by enrico_scalabrino on 10/10/20.
-//
-
 #ifndef PDSPROJECTSERVER_SOCKETWRAP_H
 #define PDSPROJECTSERVER_SOCKETWRAP_H
 
