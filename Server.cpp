@@ -14,6 +14,7 @@
 #include "Message.h"
 #include <boost/filesystem.hpp>
 #include <boost/crc.hpp>
+#include <cppconn/exception.h>
 
 
 #define PRIVATE_BUFFER_SIZE  8192
@@ -107,7 +108,16 @@ void Server::work() {
     {
         std::cout << "Server Program" << std::endl;
         std::cout << std::endl;
-        Database::create_instance();
+        try{
+            Database::create_instance();
+        }
+        catch(sql::SQLException &e)
+        {
+            std::cout<<"Impossibile connettersi al database, riprovare piu' tardi."<<std::endl;
+            std::cout<<"Chiusura immediata"<<std::endl;
+            exit(EXIT_FAILURE);
+        }
+
         std::cout << "In attesa di connessioni..." << std::endl;
         create_threads();
     }
@@ -402,7 +412,7 @@ void thread_work()
                         }
                         else
                         {
-                            std::cout<<"Utente gia' registrato,mandato TRY AGAIN"<<std::endl;
+                            std::cout<<"Utente gia' registrato o errore nella registrazione,mandato TRY AGAIN"<<std::endl;
                             client_msg=ERRORE_REGISTER;
                             send_msg_client(s_connesso,client_msg);
                             MsgType id = MsgType::TRY_AGAIN_REGISTER;

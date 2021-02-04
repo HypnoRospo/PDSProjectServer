@@ -44,95 +44,118 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
     return databaseptr_;
 }
 
- void Database::connect() {
+ void Database::connect()
     {
-        try {
-            /* Create a connection */
-            driver = get_driver_instance();
-            con = driver->connect("tcp://127.0.0.1:3306", "root", "");
-            /* Connect to the MySQL test database */
+        int count = 0;
+        int maxTries = 3;
 
-            stmt = con->createStatement();
-            stmt->execute("CREATE SCHEMA IF NOT EXISTS project_database");
+        while(true)
+        {
+            try {
+                /* Create a connection */
+                driver = get_driver_instance();
+                con = driver->connect("tcp://127.0.0.1:3306", "root", "");
+                /* Connect to the MySQL test database */
 
-            con->setSchema("project_database");
+                stmt = con->createStatement();
+                stmt->execute("CREATE SCHEMA IF NOT EXISTS project_database");
 
-            stmt = con->createStatement();
-            stmt->execute("DROP TABLE IF EXISTS users");
-            stmt->execute("CREATE TABLE users(user CHAR(70) NOT NULL,password CHAR(128) NOT NULL, PRIMARY KEY (user))");
-            delete stmt;
-            /* connect */
+                con->setSchema("project_database");
 
-            //delete con;
+                stmt = con->createStatement();
+                //stmt->execute("DROP TABLE IF EXISTS users");
+                stmt->execute("CREATE TABLE IF NOT EXISTS users(user CHAR(70) NOT NULL,password CHAR(128) NOT NULL, PRIMARY KEY (user))");
+                delete stmt;
+                /* connect */
 
-        } catch (sql::SQLException &e) {
-            std::cout << " (MySQL error code: " << e.getErrorCode();
-            std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+                //delete con;
+                break;
+
+            } catch (sql::SQLException &e) {
+                std::cout<<" Tentativo numero "<<count<<" di connessione al database..."<<std::endl;
+                if (++count == maxTries)
+                {
+                    std::cout << " (MySQL error code: " << e.getErrorCode();
+                    std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+                    throw e;
+
+                }
+                sleep(2);
+            }
         }
 
     }
-
-}
 
 bool Database::registerUser(std::string &user,std::string &pass)
 {
+    int count = 0;
+    int maxTries = 3;
 
-    try {
-        //controlli sanificazione utente e password //todo
-        prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
-        prep_stmt->setString( 1,user);
-        res =  prep_stmt->executeQuery();
-        // The prep_stmt above must return only 1 tuple because user is unique and then N<=1 and password check that N>0 => N = 1
-        //Verifico che esiste una tupla ( che è unica ) e restituisco true.
-        if(res->next()) {
-
-            //mandare messaggio di errore dato che il nickname e' gia' stato utilizzato -> con return false basta
-            return false;
-        }
-        else
-        {
-
-            /* '?' is the supported placeholder syntax */
-            prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
-
-            char hashed_password[crypto_pwhash_STRBYTES];
-
-            if (crypto_pwhash_str
-                        (hashed_password, pass.c_str(), pass.length(),
-                         crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
-                /* out of memory */
-            }
-
-
+    while(true)
+    {
+        try {
+            //controlli sanificazione utente e password //todo
+            prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
             prep_stmt->setString(1, user);
-            prep_stmt->setString(2, hashed_password);
-            prep_stmt->execute();
-            std::cout << "Utente inserito nel database " << std::endl;
-            delete prep_stmt;
+            res = prep_stmt->executeQuery();
+            // The prep_stmt above must return only 1 tuple because user is unique and then N<=1 and password check that N>0 => N = 1
+            //Verifico che esiste una tupla ( che è unica ) e restituisco true.
+            if (res->next()) {
+                //mandare messaggio di errore dato che il nickname e' gia' stato utilizzato -> con return false basta
+                return false;
+            } else {
 
-            boost::system::error_code ec;
-            boost::filesystem::create_directories(user,ec);
-            return true;
+                /* '?' is the supported placeholder syntax */
+                prep_stmt = con->prepareStatement("INSERT INTO users(user, password) VALUES (?, ?)");
+
+                char hashed_password[crypto_pwhash_STRBYTES];
+
+                if (crypto_pwhash_str
+                            (hashed_password, pass.c_str(), pass.length(),
+                             crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0) {
+                    /* out of memory */
+                }
+
+
+                prep_stmt->setString(1, user);
+                prep_stmt->setString(2, hashed_password);
+                prep_stmt->execute();
+                std::cout << "Utente inserito nel database " << std::endl;
+                delete prep_stmt;
+
+                boost::system::error_code ec;
+                boost::filesystem::create_directories(user, ec);
+                return true;
+            }
+        }
+        catch (sql::SQLException &e) {
+            std::cout << " Tentativo numero " << count << " di registrazione utente al database..." << std::endl;
+            Database::connect();
+            if (++count == maxTries) {
+                std::cout << " (MySQL error code: " << e.getErrorCode();
+                std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+                throw e;
+
+            }
+            sleep(2);
         }
         }
-    catch (sql::SQLException &e) {
-        std::cout << " (MySQL error code: " << e.getErrorCode();
-        std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
-        return false;
-    }
-
 }
 
 bool Database::searchUser(std::string &user,std::string &pass){
-    try {
-        //controlli sanificazione utente e password  //todo
+
+    int count = 0;
+    int maxTries = 3;
+
+    while(true) {
+        try {
             // sql::ResultSet* res = stmt->executeQuery("SELECT * FROM users"); //Not useful just for check that connection works
             prep_stmt = con->prepareStatement("SELECT * from users where user = ? ");
-            prep_stmt->setString( 1,user);
-            res =  prep_stmt->executeQuery();
+            prep_stmt->setString(1, user);
+            res = prep_stmt->executeQuery();
             // The prep_stmt above must return only 1 tuple because user is unique and then N<=1 and password check that N>0 => N = 1
             //Verifico che esiste una tupla ( che è unica ) e restituisco true.
-            if(res->next()) {
+            if (res->next()) {
                 std::string hashed_password = res->getString("password");
 
                 if (crypto_pwhash_str_verify
@@ -141,13 +164,19 @@ bool Database::searchUser(std::string &user,std::string &pass){
                     return false;
                 }
                 return true;
-            }
-            else return false;
+            } else return false;
         }
         catch (sql::SQLException &e) {
-        std::cout << " (MySQL error code: " << e.getErrorCode();
-        std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
-        return false;
+            std::cout << " Tentativo numero " << count << " di login utente al database..." << std::endl;
+            Database::connect();
+            if (++count == maxTries) {
+                std::cout << " (MySQL error code: " << e.getErrorCode();
+                std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+                throw e;
+
+            }
+            sleep(2);
+        }
     }
 }
 
@@ -172,11 +201,23 @@ bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
      {
          case MsgType::REGISTER:
          {
-             return Database::registerUser(user,pass);
+             try {
+                 return Database::registerUser(user,pass);
+             }
+             catch(sql::SQLException &e)
+             {
+                 return false;
+             }
          }
          case MsgType::LOGIN:
          {
-             return Database::searchUser(user, pass);
+             try {
+                 return Database::searchUser(user, pass);
+             }
+             catch(sql::SQLException &e)
+             {
+                 return false;
+             }
          }
          default:
           return false;
