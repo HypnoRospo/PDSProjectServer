@@ -259,7 +259,8 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
     ssize_t send;
     std::vector<char> filedata(fsize);
 
-    file_path=file_path+"\r\n";
+    std::string del="\r\n";
+    file_path=file_path+del;
 
     /* OK command */
     if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
@@ -267,18 +268,22 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
         return send;
     }
 
-    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
-       file_path.size()){
-        return send;
-    }
-
-    /*  dimensione file
     file_dim = htonl(fsize);
     if((send = Send(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
        sizeof(file_dim)){
         return send;
     }
-     */
+
+    if((send = Send(socket, del.c_str() ,del.size(), MSG_NOSIGNAL)) !=
+       del.size()){
+        return send;
+    }
+
+
+    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
+       file_path.size()){
+        return send;
+    }
 
     // prima leggo tutto e poi mando
     /*
@@ -307,30 +312,6 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
      */
     return fsize;
 }
-
-void progress_bar()
-{
-    float progress = 0.0;
-    while (progress < 1.0) {
-        size_t barWidth = 70;
-
-        std::cout << "[";
-        size_t pos = barWidth * progress;
-        for (int i = 0; i < barWidth; ++i) {
-            if (i < pos) std::cout << "=";
-            else if (i == pos) std::cout << ">";
-            else std::cout << " ";
-        }
-        std::cout << "] " << int(progress * 100.0) << " %\r";
-        std::cout.flush();
-
-        progress += 0.16; // for demonstration only
-    }
-    std::cout << std::endl;
-
-
-}
-
 
 /* rivedere e testare bene questa parte ! */
 /* gestione critica delle risorse -> controllare bene e semmai riprogettare */
@@ -798,13 +779,6 @@ std::string calculate_checksum(std::ifstream &ifs) {
         std::cerr << "Found an exception with '" << e.what() << "'." << std::endl;
         return e.what();
         /* VA GESTITA LA RETURN ADATTA */
-    }
-    catch ( ... )
-    {
-        std::cerr << "Found an unknown exception." << std::endl;
-        return "Errore sconosciuto sul calcolo CRC";
-        /* VA GESTITA LA RETURN ADATTA */
-
     }
 
 }
