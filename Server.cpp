@@ -262,9 +262,20 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
     std::string del="\r\n";
     file_path=file_path+del;
 
-    /* OK command */
+    std::string total_to_send;
+    total_to_send.append(OK);
+    total_to_send.append(file_path);
+    total_to_send.append(std::to_string(fsize));
+    total_to_send.append(del);
+    /* OK command
     if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
        strlen(OK)){
+        return send;
+    }
+
+
+    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
+       file_path.size()){
         return send;
     }
 
@@ -279,12 +290,6 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
         return send;
     }
 
-
-    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
-       file_path.size()){
-        return send;
-    }
-
     // prima leggo tutto e poi mando
     /*
     for(int i = 0; i < fsize; i++){
@@ -296,12 +301,16 @@ ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::strin
     }
      */
     fread(&filedata[0],filedata.size()*sizeof(char), 1, file);
+    std::string data (filedata.begin(),filedata.end());
+    total_to_send.append(data);
 
 
-    send = Send(socket, filedata.data(), fsize, MSG_NOSIGNAL);
+
+    send = Send(socket, total_to_send.data(), total_to_send.size(), MSG_NOSIGNAL);
     if(send != fsize){
         return send;
     }
+
 
     /*
     file_time = htonl(tstamp);
