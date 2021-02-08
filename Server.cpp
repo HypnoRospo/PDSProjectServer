@@ -31,14 +31,12 @@
 #define ERRORE_CHECKSUM "-SERVER: CHECKSUM NON CORRETTO\r\n"
 #define OK_FILE "-SERVER: FILE MANDATO CON SUCCESSO\r\n"
 #define OK_FILE_R "-SERVER: FILE RICEVUTO CON SUCCESSO\r\n"
-#define ERR_DELETED "-SERVER: ERRORE ELIMINAZIONE FILE o PATHS\r\n"
 #define OK_FILE_DELETED "-SERVER: FILE o PATH ELIMINATO CON SUCCESSO\r\n"
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
 ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::string& file_path);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
-void progress_bar();
 std::string calculate_checksum(std::ifstream &ifs);
 Message::message_header<MsgType> leggi_header(int socket);
 void thread_work();
