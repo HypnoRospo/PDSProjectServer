@@ -287,16 +287,6 @@ ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
        del.size()){
         return send;
     }
-
-    // prima leggo tutto e poi mando
-    /*
-    for(int i = 0; i < fsize; i++){
-        int f = fread(&c, sizeof(c), 1, file);
-        if(f < 0){
-            return -1;
-        }
-        filedata[i]=c;
-    }
      */
     fread(&filedata[0],filedata.size()*sizeof(char), 1, file);
     std::string data (filedata.begin(),filedata.end());
