@@ -35,7 +35,7 @@
 #define TIMEOUT_ERR "-SERVER: TIMEOUT SESSION EXPIRED\r\n"
 
 ssize_t send_msg_client(int sock,std::string& msg_client);
-ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::string& file_path);
+ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path);
 ssize_t leggi_comando(int socket, std::vector<unsigned char>& buffer,size_t size);
 std::string calculate_checksum(std::ifstream &ifs);
 Message::message_header<MsgType> leggi_header(int socket);
@@ -251,7 +251,7 @@ Message::message_header<MsgType> leggi_header(int socket)
     return msg;
 }
 
-ssize_t send_file(int socket,  off_t fsize, time_t tstamp, FILE* file,std::string& file_path){
+ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
 
     uint32_t file_dim, file_time;
     ssize_t send;
@@ -499,8 +499,7 @@ void thread_work()
 
                     if(path_init!=user_now)
                     {
-                        std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
-                        std::cout<<"Path iniziale non corrisponde all'user attuale."<<std::endl;
+                        std::cout<<"Path iniziale non corrisponde all'user attuale, impossibile procedere."<<std::endl;
                         /* send error message to client and close the connection */
                         client_msg=ERRORE_RICHIESTA_FILE;
                         send_msg_client(s_connesso,client_msg);
@@ -515,21 +514,20 @@ void thread_work()
                     incoming_message << buffer;
                     /* controllo inizio GET e fine  */
 
-                        struct stat filestat;
-                        /* open file and get its stat */
-                        if ((fileptr = fopen(buffer_str.c_str(), "rb")) == nullptr ||
-                            stat(buffer_str.c_str(), &filestat) != 0) {
-                            std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
-                            /* send error message to client and close the connection */
-                            client_msg=ERRORE_RICHIESTA_FILE;
-                            send_msg_client(s_connesso,client_msg);
-                            continue;
-                        }
-                        filesize = filestat.st_size;
-                        filelastmod = filestat.st_mtime;
-
+                    try{
+                        filesize=boost::filesystem::file_size(buffer_str);
+                        fileptr = fopen(buffer_str.c_str(), "rb");
+                    }
+                    catch(boost::filesystem::filesystem_error &fe)
+                    {
+                        std::cout << "Impossibile aprire il file: " << incoming_message.body.data() << std::endl;
+                        /* send error message to client and close the connection */
+                        client_msg=ERRORE_RICHIESTA_FILE;
+                        send_msg_client(s_connesso,client_msg);
+                        continue;
+                    }
                         std::cout << "Ricerca file andata a buon fine." << std::endl;
-                        send_result = send_file(s_connesso, filesize, filelastmod,
+                        send_result = send_file(s_connesso, filesize,
                                                 fileptr,buffer_str);
                         if (send_result < 0) {
                             client_msg=ERRORE_RICHIESTA_FILE;
