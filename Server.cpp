@@ -403,12 +403,14 @@ void thread_work()
                         incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
-                        if(Database::checkUser(MsgType::REGISTER,buffer).second)
+                        std::pair<std::string,bool> usr_logged;
+                        if((usr_logged=Database::checkUser(MsgType::REGISTER,buffer)).second)
                         {
                             std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
                             client_msg=OK_REGISTER;
                             send_msg_client(s_connesso,client_msg);
                             logged=true;
+                            user_now=usr_logged.first;
                         }
                         else
                         {
