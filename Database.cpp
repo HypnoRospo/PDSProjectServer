@@ -19,7 +19,6 @@ unsigned char nonce[crypto_secretbox_NONCEBYTES]={};
  sql::Statement *stmt;
  sql::ResultSet *res;
  sql::PreparedStatement *prep_stmt;
- extern std::string user_now;
 
  Database* Database::create_instance()
 {
@@ -172,7 +171,7 @@ bool Database::searchUser(std::string &user,std::string &pass){
     }
 }
 
-bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
+std::pair<std::string,bool> Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
 
     size_t pos=0;
     std::string user;
@@ -187,32 +186,31 @@ bool Database::checkUser(MsgType msg, std::vector<unsigned char>& vect_user) {
     std::string pass = decrypt.substr(0, decrypt.length());
     //  }
     std::cout << "username: " << user << " password: " << pass << std::endl;
-    user_now=user;
 
      switch(msg)
      {
          case MsgType::REGISTER:
          {
              try {
-                 return Database::registerUser(user,pass);
+                 return std::pair<std::string,bool>(user,Database::registerUser(user,pass));
              }
              catch(sql::SQLException &e)
              {
-                 return false;
+                 return std::pair<std::string,bool>(user,false);
              }
          }
          case MsgType::LOGIN:
          {
              try {
-                 return Database::searchUser(user, pass);
+                 return std::pair<std::string,bool>(user,Database::searchUser(user,pass));
              }
              catch(sql::SQLException &e)
              {
-                 return false;
+                 return std::pair<std::string,bool>(user,false);
              }
          }
          default:
-          return false;
+         return std::pair<std::string,bool>(user,false);
      }
 }
 

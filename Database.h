@@ -27,7 +27,7 @@ public:
 
     static Database* create_instance();
     static bool searchUser(std::string &user,std::string &pass);
-    static bool checkUser(MsgType msg, std::vector<unsigned char>& vect_user);
+    static std::pair<std::string,bool> checkUser(MsgType msg, std::vector<unsigned char>& vect_user);
     static bool registerUser(std::string &user,std::string &pass);
     static void setNonce( unsigned char* data_nonce);
     static std::string decrypt( std::vector<unsigned char>& encrypted);

@@ -52,7 +52,6 @@ std::vector<std::thread> threads;
 ServerSocket *ss {nullptr};  /* Puntatore alla struttura dati creata dal professore */
 std::vector<Socket> sockets; /* ci poteva stare anche una lista */
 std::mutex mtx;           // mutex for critical section
-std::string user_now;
 /**
  * The first time we call GetInstance we will lock the storage location
  *      and then we make sure again that the variable is null and then we
@@ -323,6 +322,7 @@ void thread_work()
     int s_connesso;
     unsigned long my_socket_index;
     bool logged=false;
+    std::string user_now;
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
@@ -403,7 +403,7 @@ void thread_work()
                         incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
                         std::cout << "Comando ricevuto: " << incoming_message.body.data() << std::endl;
                         std::cout<<"BUFFER SIZE:  "<<buffer.size()<<std::endl;
-                        if(Database::checkUser(MsgType::REGISTER,buffer))
+                        if(Database::checkUser(MsgType::REGISTER,buffer).second)
                         {
                             std::cout<<"Utente registrato e loggato correttamente"<<std::endl;
                             client_msg=OK_REGISTER;
@@ -448,12 +448,14 @@ void thread_work()
                          }
                          else
                          {
-                             if(Database::checkUser(MsgType::LOGIN,buffer))
+                             std::pair<std::string,bool> usr_logged;
+                             if((usr_logged=Database::checkUser(MsgType::LOGIN,buffer)).second)
                              {
                                  std::cout<<"Utente loggato correttamente"<<std::endl;
                                  client_msg=OK_LOGIN;
                                  send_msg_client(s_connesso,client_msg);
                                  logged=true;
+                                 user_now=usr_logged.first;
                              }
                              else {
                                  std::cout << "Utente non riconosciuto" << std::endl;
@@ -485,6 +487,7 @@ void thread_work()
                         continue;
                     }
                     std::string buffer_str(buffer.begin(),buffer.end());
+
                     std::string path_init= buffer_str.substr(0,user_now.size());
 
                     if(path_init!=user_now)
