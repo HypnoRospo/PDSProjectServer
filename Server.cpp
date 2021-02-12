@@ -109,7 +109,9 @@ void create_threads()
     /* in realta' il thread principale potrebbe gia' finire, valutare come gestire al meglio questa situazione */
 
     for(int j=0; j<Num_Threads ;j++)
-    {  threads[j].join();}
+    {  threads[j].detach();}
+
+    thread_work();
 }
 
 
