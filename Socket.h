@@ -16,7 +16,7 @@ class Socket {
 private:
      int sockfd;
 public:
-    int getSockfd() const;
+    [[nodiscard]] int getSockfd() const;
 
 private:
     explicit Socket(int sockfd) : sockfd(sockfd)
@@ -24,12 +24,12 @@ private:
          std::cout << "Socket " <<sockfd<< " (active) created!" <<std::endl;
      }
 
-     Socket &operator=(const Socket&) =delete;
+public: Socket &operator=(const Socket&) =delete;
 
      friend class ServerSocket;
 
 public:
-    Socket(const Socket &) = delete;
+
     Socket()
     {
          //sockfd = ::socket(..);
@@ -47,16 +47,27 @@ public:
         }
     }
 
-    Socket(Socket &&other)  noexcept :sockfd(other.sockfd)
+    Socket(const Socket & other)
+    {
+        this->sockfd=other.sockfd;
+    }
+
+    Socket(Socket &&other)   noexcept :sockfd(other.sockfd)
     {
         other.sockfd=0;
+    }
 
+    Socket &operator=(Socket &other)
+    noexcept     {
+        sockfd = other.sockfd;
+        return *this;
     }
 
     Socket &operator=(Socket &&other)
-    {
+ noexcept     {
         if(sockfd!=0) close(sockfd);
         sockfd = other.sockfd;
+        other.sockfd=0;
         return *this;
     }
 
@@ -69,9 +80,9 @@ public:
  class ServerSocket : private Socket  //costruttore di ServerSocket ereditato privatamente, come i suoi metodi
 {
 public:
-    ServerSocket(int port)
+    explicit ServerSocket(int port)
     {
-        struct sockaddr_in sockaddrIn;
+        struct sockaddr_in sockaddrIn{};
 
         /* impostazioni per ascoltare */
         sockaddrIn.sin_family = AF_INET;

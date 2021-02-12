@@ -50,8 +50,6 @@ Server* Server::pinstance_{nullptr}; /* singleton */
 std::mutex Server::mutex_; /* singleton */
 std::vector<std::thread> threads;
 ServerSocket *ss {nullptr};  /* Puntatore alla struttura dati creata dal professore */
-std::vector<Socket> sockets; /* ci poteva stare anche una lista */
-std::mutex mtx;           // mutex for critical section
 /**
  * The first time we call GetInstance we will lock the storage location
  *      and then we make sure again that the variable is null and then we
@@ -240,6 +238,9 @@ Message::message_header<MsgType> leggi_header(int socket)
                 case 10:
                     msg.id=MsgType::DELETE;
                     break;
+                case 11:
+                    msg.id=MsgType::END;
+                    break;
 
                 default:
                     msg.id=MsgType::ERROR;
@@ -252,7 +253,6 @@ Message::message_header<MsgType> leggi_header(int socket)
 
 ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
 
-    uint32_t file_dim, file_time;
     ssize_t send;
     std::vector<char> filedata(fsize);
 
@@ -323,13 +323,21 @@ void thread_work()
     unsigned long my_socket_index;
     bool logged=false;
     std::string user_now;
+    std::vector<Socket> wrapper;
     /* ciclo per accettare le connessioni*/
     while (true) {
         struct sockaddr_in addr;
         unsigned int len = sizeof(addr);
         //std::cout << "In attesa di connessioni..." << std::endl;
         try{
-            sockets.push_back( ss->accept_request(&addr,&len));
+            wrapper.push_back(ss->accept_request(&addr,&len));
+            s_connesso= wrapper.back().getSockfd();
+            if (s_connesso < 0)
+                continue;
+
+            std::cout << "Connessione stabilita con -> " <<
+                      inet_ntoa(addr.sin_addr) << ":" << ntohs(addr.sin_port) << std::endl;
+
         }
         catch(std::runtime_error &re)
         {
@@ -337,15 +345,12 @@ void thread_work()
             continue;
         }
         /* mtx.lock cosi dovrebbe fungere */
+        /*
         mtx.lock();
         s_connesso= sockets.back().getSockfd();
         my_socket_index=sockets.size()-1;
         mtx.unlock();
-        if (s_connesso < 0)
-            continue;
-
-        std::cout << "Connessione stabilita con -> " <<
-                  inet_ntoa(addr.sin_addr) << ":" << ntohs(addr.sin_port) << std::endl;
+         */
 
     /* ciclo che riceve i comandi client */
     while (true) {
@@ -690,6 +695,14 @@ void thread_work()
                         continue;
                     }
                 }
+
+                case (MsgType::END):
+                {
+                        logged=false;
+                        std::cout<<"Ricevuto messaggio di chiusura connessione."<<std::endl;
+                        break;
+                }
+
                 case(MsgType::ERROR):
                 {
                     logged=false;
@@ -723,11 +736,10 @@ void thread_work()
         buffer.shrink_to_fit();
     }
 
-        mtx.lock();
-        sockets.erase(sockets.begin()+my_socket_index);
-        mtx.unlock();
+    //stampare informazioni
 
-
+        std::cout<<"Chiusura socket id: "<<wrapper.back().getSockfd()<<std::endl;
+        wrapper.clear();
         std::cout << "In attesa di connessioni..." << std::endl;
     }
 }
