@@ -112,7 +112,7 @@ bool Database::registerUser(std::string &user,std::string &pass)
                 prep_stmt->setString(2, hashed_password);
                 prep_stmt->execute();
                 std::cout << "Utente inserito nel database " << std::endl;
-                delete prep_stmt;
+                //delete prep_stmt;
 
                 boost::system::error_code ec;
                 boost::filesystem::create_directories(user, ec);
