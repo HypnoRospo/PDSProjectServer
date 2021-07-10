@@ -17,7 +17,7 @@
 
 enum class MsgType : uint32_t
 {
-    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,CRC,ERROR, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN,NEW_FILE,DELETE,END
+    NONCE,GETPATH,LOGIN,LOGOUT,REGISTER,CRC,ERROR, TRY_AGAIN_REGISTER,TRY_AGAIN_LOGIN,NEW_FILE,DELETE,END,ELEMENT_CLIENT
 };
 
 namespace Message {
@@ -96,7 +96,7 @@ namespace Message {
             return msg;
         }
 
-         uint32_t get_id_uint32(MsgType type)
+        uint32_t get_id_uint32(MsgType type)
         {
             switch(type)
             {
@@ -127,6 +127,8 @@ namespace Message {
                     return 10;
                 case(MsgType::END):
                     return 11;
+                case(MsgType::ELEMENT_CLIENT):
+                    return 12;
 
                 default:
                     return 6;//-1
