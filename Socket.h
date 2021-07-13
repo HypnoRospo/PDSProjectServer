@@ -71,9 +71,6 @@ public:
         return *this;
     }
 
-    //qui vanno le funzioni read e write con recv e send riscritte ( include .h)
-    //ssize_t read(char*buffer,size_t len, int options){}
-    //write,connect
 };
 
 
@@ -108,10 +105,6 @@ public:
         }
     }
 
-    //Socket accept() {}
-    // fd= ::accept..
-    //return Socket(fd);
-  //todo gestirlo
 
     Socket accept_request(struct sockaddr_in* addr,unsigned int* len)
     {

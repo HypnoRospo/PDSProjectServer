@@ -5,7 +5,6 @@
 #include <thread>
 #include <filesystem>
 #include <sodium/crypto_pwhash.h>
-#include <boost/asio/ts/buffer.hpp>
 #include "Socket.h"
 #include "SocketWrap.h"
 #include "Database.h"
@@ -270,29 +269,7 @@ ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
     total_to_send.append(file_path);
     total_to_send.append(std::to_string(fsize));
     total_to_send.append(del);
-    /* OK command
-    if((send = Send(socket, OK, strlen(OK), MSG_NOSIGNAL)) !=
-       strlen(OK)){
-        return send;
-    }
 
-
-    if((send = Send(socket, file_path.c_str(), file_path.size(), MSG_NOSIGNAL)) !=
-       file_path.size()){
-        return send;
-    }
-
-    file_dim = htonl(fsize);
-    if((send = Send(socket, &file_dim, sizeof(file_dim), MSG_NOSIGNAL)) !=
-       sizeof(file_dim)){
-        return send;
-    }
-
-    if((send = Send(socket, del.c_str() ,del.size(), MSG_NOSIGNAL)) !=
-       del.size()){
-        return send;
-    }
-     */
     fread(&filedata[0],filedata.size()*sizeof(char), 1, file);
     std::string data (filedata.begin(),filedata.end());
     total_to_send.append(data);
@@ -305,18 +282,9 @@ ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
     }
 
 
-    /*
-    file_time = htonl(tstamp);
-    if((send = Send(socket, &file_time, sizeof(file_time), MSG_NOSIGNAL)) !=
-       sizeof(file_time)){
-        return send;
-    }
-     */
     return fsize;
 }
 
-/* rivedere e testare bene questa parte ! */
-/* gestione critica delle risorse -> controllare bene e semmai riprogettare */
 
 void thread_work()
 {
@@ -350,13 +318,6 @@ void thread_work()
             std::cout<<re.what()<<std::endl;
             continue;
         }
-        /* mtx.lock cosi dovrebbe fungere */
-        /*
-        mtx.lock();
-        s_connesso= sockets.back().getSockfd();
-        my_socket_index=sockets.size()-1;
-        mtx.unlock();
-         */
 
         /* ciclo che riceve i comandi client */
         while (true) {
@@ -680,7 +641,6 @@ void thread_work()
                                 std::ifstream  ifs(target,std::ios::binary);
                                 if (checksum == calculate_checksum(ifs)){
 
-                                    //todo: Server dice al client che è gia tutto ok, else dice al client di inviare il file
                                     std::cout<<"Checksum corrispondente, file gia' presente nel server"<<std::endl;
                                     client_msg=OK_CHECKSUM;
                                 }
@@ -724,17 +684,7 @@ void thread_work()
                             std::string body(incoming_message.body.begin(),incoming_message.body.end());
                             pos = body.find(delimiter);
                             path_user = body.substr(0, pos);
-                            //body.erase(0, pos + delimiter.length());
                             boost::filesystem::path target =Server::getServerPath()+path_user;
-                            /*
-                            if(boost::filesystem::is_regular_file(target))
-                            {
-                                if(!boost::filesystem::remove(target)) {
-                                    client_msg = ERR_DELETED;
-                                }
-                            }
-                            else
-                             */
                             boost::filesystem::remove_all(target);
                             client_msg = OK_FILE_DELETED;
                             send_msg_client(s_connesso,client_msg);
@@ -854,7 +804,6 @@ std::string calculate_checksum(std::ifstream &ifs) {
     {
         std::cerr << "Found an exception with '" << e.what() << "'." << std::endl;
         return e.what();
-        /* VA GESTITA LA RETURN ADATTA */
     }
 
 }
