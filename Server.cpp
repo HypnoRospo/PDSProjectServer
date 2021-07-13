@@ -602,7 +602,6 @@ void thread_work()
                         } else {
                             if (std::filesystem::exists("../server_users/" + user_now + "/")) {
                                 incoming_message << buffer; //possiamo passare direttamente body cipher, funziona anche i messaggi
-                                std::cout << "File presenti nella folder del client " <<user_now << ": " << incoming_message.body.data() << std::endl;
                                 bool flag = false;
                                 std::vector<std::string> elements;
                                 std::string body(incoming_message.body.begin(), incoming_message.body.end());
@@ -610,7 +609,6 @@ void thread_work()
                                     size_t pos = 0;
                                     std::string delimiter = "\r\n";
                                     std::string path_user;
-                                    //std::string body(incoming_message.body.begin(), incoming_message.body.end());
                                     pos = body.find(delimiter);
                                     path_user = body.substr(0, pos);
                                     body.erase(0, pos + delimiter.length());
@@ -623,40 +621,31 @@ void thread_work()
 
                                 std::vector<std::string> tempfs2;
                                 for (auto &file :  std::filesystem::recursive_directory_iterator("../server_users/" + user_now + "/")) {
-                                    // if (!file.is_directory()) {
                                     tempfs2.push_back(file.path());
                                     std::cout << "File o cartella dell'utente " << user_now << " presente nel server: " << file << std::endl;
                                     // }
                                 }
 
-                                for (auto ele_server : tempfs2) {
+                                //rivedere
+
+                                for (const auto& ele_server : tempfs2) {
                                     bool flag_check = false;
-                                    for (auto ele_client : elements) {
+                                    for (const auto& ele_client : elements) {
                                         if (ele_client == ele_server)
+                                        {
                                             flag_check = true;
+                                            break;
+                                        }
                                     }
-                                    if (flag_check == false) {
+                                    if (!flag_check) {
                                         if(std::filesystem::exists(ele_server))
                                             std::filesystem::remove_all(ele_server);
                                     }
                                 }
 
-/*
-                            std::vector<std::string> dirtodelete;
-                            for (auto &filedir :  std::filesystem::recursive_directory_iterator(
-                                    "../server_users/" + user_now + "/")) {
-                                if (filedir.is_directory()) {
-                                    if (std::filesystem::is_empty(filedir))
-                                        dirtodelete.push_back(filedir.path());
-                                }
-                            }
-                            for (auto it : dirtodelete)
-                                std::filesystem::remove(it);
-*/
                             }else
                                 std::filesystem::create_directories("../server_users/" + user_now + "/");
                         }
-
 
                         break;
                     }
