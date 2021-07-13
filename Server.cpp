@@ -275,7 +275,6 @@ ssize_t send_file(int socket,  off_t fsize, FILE* file,std::string& file_path){
     total_to_send.append(data);
 
 
-
     send = Send(socket, total_to_send.data(), total_to_send.size(), MSG_NOSIGNAL);
     if(send != fsize){
         return send;
